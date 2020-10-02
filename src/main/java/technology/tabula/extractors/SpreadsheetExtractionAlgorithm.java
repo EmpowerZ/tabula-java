@@ -20,7 +20,10 @@ import technology.tabula.TextElement;
 import technology.tabula.Utils;
 
 /**
- * @author manuel
+ * Extract a list of Table from page imaging lines where there is nothing as column lines
+ * and matching strings into rows using their position
+ *
+ * See {@link SpreadsheetExtractionAlgorithm#extract(Page, List)} for more info
  *
  */
 public class SpreadsheetExtractionAlgorithm implements ExtractionAlgorithm {
@@ -85,7 +88,13 @@ public class SpreadsheetExtractionAlgorithm implements ExtractionAlgorithm {
     }
     
     /**
-     * Extract a list of Table from page using rulings as separators
+     * Extract cells from table divided by lines.
+     *
+     * 1. Clean rulings (remove similar, use only strictly vertical/horizontal)
+     * 2. Find cells using rulings interceptions
+     * 3. Find rectangle which contains all cells
+     * 4. Remove cells,rulings outside of this rectangle
+     * 5. Merge words in same cells.
      */
     public List<Table> extract(Page page, List<Ruling> rulings) {
         // split rulings into horizontal and vertical
@@ -227,7 +236,10 @@ public class SpreadsheetExtractionAlgorithm implements ExtractionAlgorithm {
         
         return cellsFound;
     }
-    
+
+    /**
+     * For every adjacent group of cells, find minimal axis-aligned rectangles which can hold them.
+     */
     public static List<Rectangle> findSpreadsheetsFromCells(List<? extends Rectangle> cells) {
         // via: http://stackoverflow.com/questions/13746284/merging-multiple-adjacent-rectangles-into-one-polygon
         List<Rectangle> rectangles = new ArrayList<>();
@@ -315,7 +327,9 @@ public class SpreadsheetExtractionAlgorithm implements ExtractionAlgorithm {
             }
             polygons.add(polygon);
         }
-        
+
+        // end code from stackoverflow
+
         // calculate grid-aligned minimum area rectangles for each found polygon
         for(List<PolygonVertex> poly: polygons) {
             float top = java.lang.Float.MAX_VALUE;

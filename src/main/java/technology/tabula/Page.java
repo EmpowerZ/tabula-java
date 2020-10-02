@@ -151,6 +151,9 @@ public class Page extends Rectangle {
 
   }
 
+  /**
+   * @return Only vertical or horizontal rulings, duplicates are removed
+   */
   public List<Ruling> getRulings() {
     if (this.cleanRulings != null) {
       return this.cleanRulings;

@@ -44,6 +44,9 @@ public class Utils {
         return bd.floatValue();
     }
 
+    /**
+     * Find rectangle which contains all the shapes
+     */
     public static Rectangle bounds(Collection<? extends Shape> shapes) {
         if (shapes.isEmpty()) {
             throw new IllegalArgumentException("shapes can't be empty");

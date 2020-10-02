@@ -39,7 +39,7 @@ import technology.tabula.extractors.SpreadsheetExtractionAlgorithm;
  * <p>
  * Attempt at an implementation of the table finding algorithm described by
  * Anssi Nurminen's master's thesis:
- * http://dspace.cc.tut.fi/dpub/bitstream/handle/123456789/21520/Nurminen.pdf?sequence=3
+ * https://trepo.tuni.fi/handle/123456789/21520
  */
 public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 

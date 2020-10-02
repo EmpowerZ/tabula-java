@@ -21,6 +21,9 @@ import org.apache.pdfbox.util.Matrix;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Detects all existing lines in pdf and sets them to rulings
+ */
 class ObjectExtractorStreamEngine extends PDFGraphicsStreamEngine {
 
     protected List<Ruling> rulings;
@@ -222,6 +225,7 @@ class ObjectExtractorStreamEngine extends PDFGraphicsStreamEngine {
                             : new Line2D.Float(last_move, end_pos);
 
                     if (line.intersects(this.currentClippingPath())) {
+                        // intersect clips the line
                         Ruling r = new Ruling(line.getP1(), line.getP2()).intersect(this.currentClippingPath());
 
                         if (r.length() > 0.01) {

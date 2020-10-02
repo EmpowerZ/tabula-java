@@ -330,6 +330,11 @@ public class TextChunk extends RectangularTextContainer<TextElement> implements 
         return hasHadAtLeastOneNonEmptyTextChunk;
     }
 
+    /**
+     * 1. Add to the same line if vertical overlap between chunk rects is >= 0.1
+     * 2. ? Remove lines consisting of same char and that are almost full line wide
+     * 3. Remove repeated spaces
+     */
     public static List<Line> groupByLines(List<TextChunk> textChunks) {
         List<Line> lines = new ArrayList<>();
 

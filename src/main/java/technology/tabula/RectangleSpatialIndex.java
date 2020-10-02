@@ -6,6 +6,9 @@ import java.util.List;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.index.strtree.STRtree;
 
+/***
+ * List that sorts rectangles is spacial order
+ */
 public class RectangleSpatialIndex<T extends Rectangle> {
     
 
@@ -16,7 +19,10 @@ public class RectangleSpatialIndex<T extends Rectangle> {
         rectangles.add(te);
         si.insert(new Envelope(te.getLeft(), te.getRight(), te.getBottom(), te.getTop()), te);
     }
-    
+
+    /**
+     * ? Get all rectangles in collection that are inside r.
+     */
     public List<T> contains(Rectangle r) {
         List<T> intersection = si.query(new Envelope(r.getLeft(), r.getRight(), r.getTop(), r.getBottom()));
         List<T> rv = new ArrayList<T>();

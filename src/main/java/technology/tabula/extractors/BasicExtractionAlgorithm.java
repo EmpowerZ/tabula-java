@@ -14,6 +14,10 @@ import technology.tabula.Table;
 import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 
+/**
+ * Extract a list of Table from page using rulings as separators.
+ * See {@link BasicExtractionAlgorithm#extract(Page, List)} for more info
+ */
 public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
     
     private List<Ruling> verticalRulings = null;
@@ -34,6 +38,11 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
         return this.extract(page);
     }
 
+    /**
+     * 1. Group strings by their Y coordinate into lines.
+     * 2. Find column coordinates (vertical lines which do to intersect text).
+     * 3. Extra columns using string lines and columns.
+     */
     @Override
     public List<Table> extract(Page page) {
         
@@ -105,6 +114,9 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
     
     
     /**
+     * Merges rectangles from lines which overlap horizontally into big rectangles.
+     * Than makes right side of every big rectangle. These are our columns.
+     *
      * @param lines must be an array of lines sorted by their +top+ attribute
      * @return a list of column boundaries (x axis)
      */

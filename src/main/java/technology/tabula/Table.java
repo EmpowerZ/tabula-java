@@ -31,8 +31,11 @@ public class Table extends Rectangle {
 
 	public String getExtractionMethod() { return extractionMethod; }
 
+	/**
+	 * Add a cell into position and if other cell present in that position merge both cells (merge text and rect)
+	 */
 	public void add(RectangularTextContainer chunk, int row, int col) {
-		this.merge(chunk);
+		this.merge(chunk); // expand rectangle (parent) of this table
 		
 		rowCount = Math.max(rowCount, row + 1);
 		colCount = Math.max(colCount, col + 1);

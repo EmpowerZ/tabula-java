@@ -37,6 +37,12 @@ public class TableWithRulingLines extends Table {
             List<Cell> row = rowsOfCells.get(i);
             Iterator<Cell> rowCells = row.iterator();
             Cell cell = rowCells.next();
+            /**
+             * Get cells in below rows, which are before this cell.
+             *
+             * In case there are cells before in other rows, don't make this cell first, but calculate it's index
+             * accordingly.
+             */
             List<List<Cell>> others = rowsOfCells(
                     si.contains(
                             new Rectangle(cell.getBottom(), si.getBounds().getLeft(), cell.getLeft() - si.getBounds().getLeft(), 
@@ -52,7 +58,12 @@ public class TableWithRulingLines extends Table {
             }
         }
     }
-    
+
+    /***
+     * Put cells into separate rows and sort rows starting from top to bottom.
+     *
+     * @return list of rows
+     */
     private static List<List<Cell>> rowsOfCells(List<Cell> cells) {
         Cell c;
         float lastTop;
