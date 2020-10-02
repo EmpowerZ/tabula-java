@@ -64,6 +64,15 @@ public class Debug {
         drawShapes(g, rulings);
     }
 
+    private static void debugNurminenEdges(Graphics2D g, Page page) {
+        // draw detected lines
+        NurminenDetectionAlgorithm detectionAlgorithm = new NurminenDetectionAlgorithm();
+        detectionAlgorithm.detect(page);
+        drawShapes(g, detectionAlgorithm.allLeftTextEdges, Color.BLUE);
+        drawShapes(g, detectionAlgorithm.allMidTextEdges, Color.GREEN);
+        drawShapes(g, detectionAlgorithm.allRightTextEdges, Color.MAGENTA);
+    }
+
     private static void debugColumns(Graphics2D g, Page page) {
         List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
         List<Line> lines = TextChunk.groupByLines(textChunks);
@@ -109,17 +118,20 @@ public class Debug {
         drawShapes(g, tables);
     }
 
-    private static void drawShapes(Graphics2D g, Collection<? extends Shape> shapes, Stroke stroke) {
+    private static void drawShapes(Graphics2D g, Collection<? extends Shape> shapes, Stroke stroke, Color color) {
         int i = 0;
         g.setStroke(stroke);
         for (Shape s : shapes) {
-            g.setColor(COLORS[(i++) % 5]);
+            g.setColor(color == null ? COLORS[(i++) % 5] : color);
             drawShape(g, s);
         }
     }
 
     private static void drawShapes(Graphics2D g, Collection<? extends Shape> shapes) {
-        drawShapes(g, shapes, new BasicStroke(2f));
+        drawShapes(g, shapes, null);
+    }
+    private static void drawShapes(Graphics2D g, Collection<? extends Shape> shapes, Color color) {
+        drawShapes(g, shapes, new BasicStroke(2f), color);
     }
 
     private static void debugProjectionProfile(Graphics2D g, Page page) {
@@ -214,7 +226,7 @@ public class Debug {
                                   boolean drawTextChunks, boolean drawSpreadsheets, boolean drawRulings, boolean drawIntersections,
                                   boolean drawColumns, boolean drawCharacters, boolean drawArea, boolean drawCells,
                                   boolean drawUnprocessedRulings, boolean drawProjectionProfile, boolean drawClippingPaths,
-                                  boolean drawDetectedTables) throws IOException {
+                                  boolean drawDetectedTables, boolean drawNurminenEdges) throws IOException {
         PDDocument document = PDDocument.load(new File(pdfPath));
 
         ObjectExtractor oe = new ObjectExtractor(document);
@@ -270,6 +282,9 @@ public class Debug {
         if (drawDetectedTables) {
             debugDetectedTables(g, page);
         }
+        if (drawNurminenEdges) {
+            debugNurminenEdges(g, page);
+        }
 
         document.close();
 
@@ -290,8 +305,9 @@ public class Debug {
         o.addOption("l", "cells", false, "Show detected cells");
         o.addOption("u", "unprocessed-rulings", false, "Show non-cleaned rulings");
         o.addOption("f", "profile", false, "Show projection profile");
-        o.addOption("n", "clipping-paths", false, "Show clipping paths");
+        o.addOption("z", "clipping-paths", false, "Show clipping paths");
         o.addOption("d", "detected-tables", false, "Show detected tables");
+        o.addOption("n", "nurminen-edges", false, "Draw ALL edges detected by Nurminen table detection code.");
 
         o.addOption(Option.builder("a").longOpt("area")
                 .desc("Portion of the page to analyze (top,left,bottom,right). Example: --area 269.875,12.75,790.5,561. Default is entire page")
@@ -367,7 +383,7 @@ public class Debug {
                                 .getAbsolutePath(),
                         i - 1, area, line.hasOption('t'), line.hasOption('s'), line.hasOption('r'), line.hasOption('i'),
                         line.hasOption('c'), line.hasOption('e'), line.hasOption('g'), line.hasOption('l'),
-                        line.hasOption('u'), line.hasOption('f'), line.hasOption('n'), line.hasOption('d'));
+                        line.hasOption('u'), line.hasOption('f'), line.hasOption('z'), line.hasOption('d'), line.hasOption('n'));
             }
         } catch (ParseException e) {
             System.err.println("Error: " + e.getMessage());

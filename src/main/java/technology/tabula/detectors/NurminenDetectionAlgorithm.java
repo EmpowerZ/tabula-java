@@ -52,6 +52,9 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     private static final int REQUIRED_TEXT_LINES_FOR_EDGE = 4;
     private static final int REQUIRED_CELLS_FOR_TABLE = 4;
     private static final float IDENTICAL_TABLE_OVERLAP_RATIO = 0.9f;
+    public List<TextEdge> allLeftTextEdges = new ArrayList<>();
+    public List<TextEdge> allMidTextEdges = new ArrayList<>();
+    public List<TextEdge> allRightTextEdges = new ArrayList<>();
 
     /**
      * Helper class that encapsulates a text edge
@@ -261,6 +264,9 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             List<TextEdge> leftTextEdges = textEdges.get(TextEdge.LEFT);
             List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
             List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
+            allLeftTextEdges.addAll(leftTextEdges);
+            allMidTextEdges.addAll(midTextEdges);
+            allRightTextEdges.addAll(rightTextEdges);
 
             // find the relevant text edges (the ones we think define where a table is)
             RelevantEdges relevantEdgeInfo = this.getRelevantEdges(textEdges, lines);
