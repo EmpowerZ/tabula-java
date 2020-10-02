@@ -250,11 +250,11 @@ public class TestSpreadsheetExtractor {
     public void testMergeLinesCloseToEachOther() throws IOException {
         Page page = UtilsForTesting.getPage("src/test/resources/technology/tabula/20.pdf", 1);
         List<Ruling> rulings = page.getVerticalRulings();
-        float[] expectedRulings = new float[]{105.549774f, 107.52332f, 160.58167f, 377.1792f, 434.95804f, 488.21783f};
+        float[] expectedRulings = new float[]{105.549774f, 160.58167f, 377.1792f, 434.95804f, 488.21783f};
         for (int i = 0; i < rulings.size(); i++) {
             assertEquals(expectedRulings[i], rulings.get(i).getLeft(), 0.1);
         }
-        assertEquals(6, rulings.size());
+        assertEquals(5, rulings.size());
 
 
     }

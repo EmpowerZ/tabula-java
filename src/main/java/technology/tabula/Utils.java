@@ -35,7 +35,11 @@ public class Utils {
     protected static boolean useQuickSort = useCustomQuickSort();
 
     public static boolean feq(double f1, double f2) {
-        return (Math.abs(f1 - f2) < EPSILON);
+        return feq(f1, f2, EPSILON);
+    }
+
+    public static boolean feq(double f1, double f2, double epsilon) {
+        return (Math.abs(f1 - f2) < epsilon);
     }
 
     public static float round(double d, int decimalPlace) {

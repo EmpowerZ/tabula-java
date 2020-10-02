@@ -421,8 +421,15 @@ public class Ruling extends Line2D.Float {
 
         for (Ruling next_line : lines) {
             Ruling last = rv.isEmpty() ? null : rv.get(rv.size() - 1);
+
+            float origNextLinePosition = next_line.getPosition();
+            if (last != null && Utils.feq(next_line.getPosition(), last.getPosition(), 2.0)) {
+                next_line.setPosition(last.getPosition());
+            }
+
             // if current line colinear with next, and are "close enough": expand current line
             if (last != null && Utils.feq(next_line.getPosition(), last.getPosition()) && last.nearlyIntersects(next_line, expandAmount)) {
+                next_line.setPosition(origNextLinePosition);
                 final float lastStart = last.getStart();
                 final float lastEnd = last.getEnd();
 
