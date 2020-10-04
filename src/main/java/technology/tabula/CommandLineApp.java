@@ -418,6 +418,7 @@ public class CommandLineApp {
         }
 
         public List<Table> extractTablesBasic(Page page) {
+            basicExtractor.setMixedTableExtractionEnabled(guess);
             if (guess) {
                 // guess the page areas to extract using a detection algorithm
                 // currently we only have a detector that uses spreadsheets to find table areas

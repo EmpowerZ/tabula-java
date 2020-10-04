@@ -20,8 +20,7 @@ import technology.tabula.TextElement;
 import technology.tabula.Utils;
 
 /**
- * Extract a list of Table from page imaging lines where there is nothing as column lines
- * and matching strings into rows using their position
+ * Extract a list of Table from page using rulings as separators.
  *
  * See {@link SpreadsheetExtractionAlgorithm#extract(Page, List)} for more info
  *
@@ -176,7 +175,6 @@ public class SpreadsheetExtractionAlgorithm implements ExtractionAlgorithm {
         int colsDefinedWithoutLines = table.getColCount();
         
         float ratio = (((float) colsDefinedByLines / colsDefinedWithoutLines) + ((float) rowsDefinedByLines / rowsDefinedWithoutLines)) / 2.0f;
-        
         return ratio > MAGIC_HEURISTIC_NUMBER && ratio < (1/MAGIC_HEURISTIC_NUMBER);
     }
     

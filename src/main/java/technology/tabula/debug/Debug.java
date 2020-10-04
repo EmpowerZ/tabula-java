@@ -57,6 +57,20 @@ public class Debug {
         drawShapes(g, page.getUnprocessedRulings());
     }
 
+    private static void debugMixedAlgorithmRulings(Graphics2D g, Page page) {
+        // draw detected lines
+        NurminenDetectionAlgorithm detector = new NurminenDetectionAlgorithm();
+        List<Rectangle> guesses = detector.detect(page);
+
+        for (Rectangle guessRect : guesses) {
+            Page newPage = page.getArea(guessRect);
+            BasicExtractionAlgorithm extractionAlgorithm = new BasicExtractionAlgorithm();
+            extractionAlgorithm.setMixedTableExtractionEnabled(true);
+            List<Table> extract = extractionAlgorithm.extract(newPage);
+            drawShapes(g, extractionAlgorithm.mixedExtractionRulings);
+        }
+    }
+
     private static void debugRulings(Graphics2D g, Page page) {
         // draw detected lines
         List<Ruling> rulings = new ArrayList<>(page.getHorizontalRulings());
@@ -232,7 +246,7 @@ public class Debug {
                                   boolean drawTextChunks, boolean drawSpreadsheets, boolean drawRulings, boolean drawIntersections,
                                   boolean drawColumns, boolean drawCharacters, boolean drawArea, boolean drawCells,
                                   boolean drawUnprocessedRulings, boolean drawProjectionProfile, boolean drawClippingPaths,
-                                  boolean drawDetectedTables, boolean drawNurminenEdges) throws IOException {
+                                  boolean drawDetectedTables, boolean drawNurminenEdges, boolean drawMixedRulings) throws IOException {
         PDDocument document = PDDocument.load(new File(pdfPath));
 
         ObjectExtractor oe = new ObjectExtractor(document);
@@ -291,6 +305,9 @@ public class Debug {
         if (drawNurminenEdges) {
             debugNurminenEdges(g, page);
         }
+        if (drawMixedRulings) {
+            debugMixedAlgorithmRulings(g, page);
+        }
 
         document.close();
 
@@ -313,7 +330,8 @@ public class Debug {
         o.addOption("f", "profile", false, "Show projection profile");
         o.addOption("z", "clipping-paths", false, "Show clipping paths");
         o.addOption("d", "detected-tables", false, "Show detected tables");
-        o.addOption("n", "nurminen-edges", false, "Draw ALL edges detected by Nurminen table detection code.");
+        o.addOption("n", "nurminen-edges", false, "Show ALL edges detected by Nurminen table detection code.");
+        o.addOption("m", "mixed-rulings", false, "Show ruling created by mixed extraction algorithm");
 
         o.addOption(Option.builder("a").longOpt("area")
                 .desc("Portion of the page to analyze (top,left,bottom,right). Example: --area 269.875,12.75,790.5,561. Default is entire page")
@@ -389,7 +407,8 @@ public class Debug {
                                 .getAbsolutePath(),
                         i - 1, area, line.hasOption('t'), line.hasOption('s'), line.hasOption('r'), line.hasOption('i'),
                         line.hasOption('c'), line.hasOption('e'), line.hasOption('g'), line.hasOption('l'),
-                        line.hasOption('u'), line.hasOption('f'), line.hasOption('z'), line.hasOption('d'), line.hasOption('n'));
+                        line.hasOption('u'), line.hasOption('f'), line.hasOption('z'), line.hasOption('d'),
+                        line.hasOption('n'), line.hasOption('m'));
             }
         } catch (ParseException e) {
             System.err.println("Error: " + e.getMessage());
