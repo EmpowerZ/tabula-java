@@ -454,7 +454,19 @@ public class CommandLineApp {
 
         public List<Table> extractTablesSpreadsheet(Page page) {
             // TODO add useLineReturns
-            return spreadsheetExtractor.extract(page);
+            List<Table> tables = new ArrayList<>();
+
+            if (guess) {
+                DetectionAlgorithm detector = new NurminenDetectionAlgorithm();
+                List<Rectangle> guesses = detector.detect(page);
+                for (Rectangle guessRect : guesses) {
+                    Page guess = page.getArea(guessRect);
+                    tables.addAll(spreadsheetExtractor.extract(guess));
+                }
+                return tables;
+            } else {
+                return spreadsheetExtractor.extract(page);
+            }
         }
     }
 
