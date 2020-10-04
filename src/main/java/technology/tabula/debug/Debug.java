@@ -74,15 +74,21 @@ public class Debug {
     }
 
     private static void debugColumns(Graphics2D g, Page page) {
-        List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
-        List<Line> lines = TextChunk.groupByLines(textChunks);
-        List<Float> columns = BasicExtractionAlgorithm.columnPositions(lines);
-        int i = 0;
-        for (float p : columns) {
-            Ruling r = new Ruling(new Point2D.Float(p, page.getTop()),
-                    new Point2D.Float(p, page.getBottom()));
-            g.setColor(COLORS[(i++) % 5]);
-            drawShape(g, r);
+        NurminenDetectionAlgorithm detector = new NurminenDetectionAlgorithm();
+        List<Rectangle> guesses = detector.detect(page);
+
+        for (Rectangle guessRect : guesses) {
+            Page newPage = page.getArea(guessRect);
+            List<TextChunk> textChunks = TextElement.mergeWords(newPage.getText());
+            List<Line> lines = TextChunk.groupByLines(textChunks);
+            List<Float> columns = BasicExtractionAlgorithm.columnPositions(lines);
+            int i = 0;
+            for (float p : columns) {
+                Ruling r = new Ruling(new Point2D.Float(p, newPage.getTop()),
+                                      new Point2D.Float(p, newPage.getBottom()));
+                g.setColor(COLORS[(i++) % 5]);
+                drawShape(g, r);
+            }
         }
     }
 
