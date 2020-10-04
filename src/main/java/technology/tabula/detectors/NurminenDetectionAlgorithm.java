@@ -327,6 +327,10 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         return new ArrayList<>(tableSet);
     }
 
+    /**
+     * Row must intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
+     * to be considered part of table.
+     */
     private Rectangle getTableFromText(List<Line> lines,
                                        List<TextEdge> relevantEdges,
                                        int relevantEdgeCount,
@@ -492,6 +496,8 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         int relevantEdgeType = -1;
         int relevantEdgeCount = 0;
         for (int i = edgeCountsPerLine.length - 1; i > 2; i--) {
+            // if more than two left edges cross exactly i rows
+            // relevantEdgeCount = number of left edges
             if (edgeCountsPerLine[i][TextEdge.LEFT] > 2 &&
                     edgeCountsPerLine[i][TextEdge.LEFT] >= edgeCountsPerLine[i][TextEdge.RIGHT] &&
                     edgeCountsPerLine[i][TextEdge.LEFT] >= edgeCountsPerLine[i][TextEdge.MID]) {

@@ -181,9 +181,10 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
      * @return a list of column boundaries (x axis)
      */
     public static List<java.lang.Float> columnPositions(List<Line> lines) {
-        // ignore first row (might be a title header), not merge with them. See eu-001.pdf, Crawford_technologies.pdf for example.
-        //int startIndex = (lines.size() > 5) ? 1 : 0;
-        int startIndex = 0;
+        // ignore first rows (might be a title header something at the top or wrongly detected thing at top of table),
+        // not merge with them. See eu-001.pdf, Crawford_technologies.pdf for example.
+        int startIndex = (lines.size() > 4) ? 1 : 0;
+        startIndex = (lines.size() > 5) ? 3 : startIndex;
 
         List<Rectangle> regions = new ArrayList<>();
         for (TextChunk tc: lines.get(startIndex).getTextElements()) {
