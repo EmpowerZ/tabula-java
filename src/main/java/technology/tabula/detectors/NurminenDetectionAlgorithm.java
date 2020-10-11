@@ -4,6 +4,7 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -33,6 +34,8 @@ import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 import technology.tabula.Utils;
 import technology.tabula.extractors.SpreadsheetExtractionAlgorithm;
+
+import javax.imageio.ImageIO;
 
 /**
  * Created by matt on 2015-12-17.
@@ -113,6 +116,8 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         } catch (IOException e) {
             return new ArrayList<>();
         }
+
+        //Utils.save(image, "/tmp/lool");
 
         List<Ruling> horizontalRulings = this.getHorizontalRulings(image);
 

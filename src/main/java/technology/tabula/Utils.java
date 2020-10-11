@@ -5,6 +5,7 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
@@ -14,6 +15,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
+
+import javax.imageio.ImageIO;
 
 /**
  * @author manuel
@@ -290,6 +293,15 @@ public class Utils {
   public static BufferedImage pageConvertToImage(PDDocument doc, PDPage page, int dpi, ImageType imageType) throws IOException {
     PDFRenderer renderer = new PDFRenderer(doc);
     return renderer.renderImageWithDPI(doc.getPages().indexOf(page), dpi, imageType);
+  }
+
+  public static void save(BufferedImage image, String path) {
+      File outputfile = new File(path + ".png");
+      try {
+          ImageIO.write(image, "png", outputfile);
+      } catch (IOException e) {
+          e.printStackTrace();
+      }
   }
 
 }

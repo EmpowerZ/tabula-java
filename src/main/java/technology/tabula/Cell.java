@@ -7,6 +7,7 @@ import java.util.List;
 
 @SuppressWarnings("serial")
 public class Cell extends RectangularTextContainer<TextChunk> {
+	public static char CELL_DIVIDER = '\r';
 
 	public Cell(float top, float left, float width, float height) {
 		super(top, left, width, height);
@@ -36,7 +37,7 @@ public class Cell extends RectangularTextContainer<TextChunk> {
 		double curTop = this.textElements.get(0).getTop();
 		for (TextChunk tc : this.textElements) {
 			if (useLineReturns && tc.getTop() > curTop) {
-				sb.append('\r');
+				sb.append(CELL_DIVIDER);
 			}
 			sb.append(tc.getText());
 			curTop = tc.getTop();

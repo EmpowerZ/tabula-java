@@ -63,6 +63,7 @@ public class CommandLineApp {
     }
 
     public static void main(String[] args) {
+        Cell.CELL_DIVIDER = ' '; // terminal does not like \r
         CommandLineParser parser = new DefaultParser();
         try {
             // parse the command line arguments

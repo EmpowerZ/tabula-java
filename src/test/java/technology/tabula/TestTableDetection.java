@@ -122,6 +122,24 @@ public class TestTableDetection {
             }
         }
 
+        Collections.sort(data, new Comparator<Object[]>() {
+            @Override
+            public int compare(Object[] t0, Object[] t1) {
+                String f0 = ((File)t0[0]).getPath();
+                String f1 = ((File)t1[0]).getPath();
+
+                return f0.compareTo(f1);
+            }
+        });
+        // src/test/resources/technology/tabula/
+
+        data = new ArrayList<>();
+        //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-006.pdf")});
+        //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-011.pdf")});
+        //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-015.pdf")});
+        //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-016.pdf")});
+        data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-026.pdf")});
+
         return data;
     }
 
