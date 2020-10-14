@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -103,6 +104,14 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     }
 
     @Override
+    /**
+     * 1. Convert to image
+     * 3. Find rulings in image
+     * 4. Using rulings in image, try to find full spreadsheet tables with cells.
+     * 5. Search the rest of space for tables using Nurminen edges
+     * 6. Using relevant edge count/type find rows that are relevant
+     * 7. Expand the area into top and bottom using horizontal rulings.
+     */
     public List<Rectangle> detect(Page page) {
 
         // get horizontal & vertical lines
@@ -195,10 +204,10 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         // the tabula Page coordinate space is half the size of the PDFBox image coordinate space
         // so halve the table area size before proceeding and add a bit of padding to make sure we capture everything
         for (Rectangle area : tableAreas) {
-            area.x = (float) Math.floor(area.x / 2) - TABLE_PADDING_AMOUNT;
-            area.y = (float) Math.floor(area.y / 2) - TABLE_PADDING_AMOUNT;
-            area.width = (float) Math.ceil(area.width / 2) + TABLE_PADDING_AMOUNT;
-            area.height = (float) Math.ceil(area.height / 2) + TABLE_PADDING_AMOUNT;
+            area.x = area.x / 2 - TABLE_PADDING_AMOUNT;
+            area.y = area.y / 2 - TABLE_PADDING_AMOUNT;
+            area.width = area.width / 2 + TABLE_PADDING_AMOUNT;
+            area.height = area.height / 2 + TABLE_PADDING_AMOUNT + 1;
         }
 
         // we're going to want halved horizontal lines later too
@@ -333,8 +342,9 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     }
 
     /**
-     * Row must intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
+     * 1. Find rows whichust intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
      * to be considered part of table.
+     * 2. Expand the table to the top and to the bottom using horizontal rulings.
      */
     private Rectangle getTableFromText(List<Line> lines,
                                        List<TextEdge> relevantEdges,

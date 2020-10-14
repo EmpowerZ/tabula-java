@@ -247,7 +247,7 @@ xsi:noNamespaceSchemaLocation="competition-entry-region-model.xsd" filename='bm_
          <instruction instr-id='826'/>
          <instruction instr-id='834'/>
          <instruction instr-id='834' subinstr-id='2'/>
-         <bounding-box x1='92' y1='77' x2='489' y2='373'/>
+         <bounding-box x1='92' y1='77' x2='489' y2='372'/>
       </region>
    </table>
 </document>

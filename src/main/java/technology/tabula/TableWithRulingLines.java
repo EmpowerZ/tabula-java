@@ -45,7 +45,7 @@ public class TableWithRulingLines extends Table {
              */
             List<List<Cell>> others = rowsOfCells(
                     si.contains(
-                            new Rectangle(cell.getBottom(), si.getBounds().getLeft(), cell.getLeft() - si.getBounds().getLeft(), 
+                            new Rectangle(cell.getBottom(), si.getBounds().getLeft(), cell.getLeft() - si.getBounds().getLeft() + 1,
                                     si.getBounds().getBottom() - cell.getBottom())
                             ));
             int startColumn = 0;
@@ -101,4 +101,7 @@ public class TableWithRulingLines extends Table {
         return rv;
     }
 
+    public RectangleSpatialIndex<Cell> getSi() {
+        return si;
+    }
 }

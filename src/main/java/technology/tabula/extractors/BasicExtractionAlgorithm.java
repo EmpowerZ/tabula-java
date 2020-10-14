@@ -128,21 +128,32 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
         horizontalR = Ruling.collapseOrientedRulings(horizontalR);
         horizontalR = getRelevantRulings(page, horizontalR);
 
+        float meaningfulRulingsCount = horizontalR.size();
+
+        float contentTop = lines.get(0).getTop();
+        float contentBottom = lines.get(lines.size() - 1).getBottom();
+
+        float minHRuling = Float.MAX_VALUE;
+        float maxHRuling = Float.MIN_VALUE;
+        for (Ruling hr : horizontalR) {
+            minHRuling = Math.min(minHRuling, hr.y1);
+            maxHRuling = Math.max(maxHRuling, hr.y1);
+
+            hr.setLeft(page.getLeft());
+            hr.setRight(page.getRight());
+        }
+
+        // if the ruling above all text in table
+        if (contentTop >= minHRuling) {
+            meaningfulRulingsCount--;
+        }
+        // or bellow all text, don't count it.
+        if (contentBottom <= maxHRuling) {
+            meaningfulRulingsCount--;
+        }
+
         if (mixedTableExtractionEnabled &&
-          lines.size() != 0 && (float) horizontalR.size() / lines.size() > 0.3) {
-            float minHRuling = Float.MAX_VALUE;
-            float maxHRuling = Float.MIN_VALUE;
-            for (Ruling hr : horizontalR) {
-                minHRuling = Math.min(minHRuling, hr.y1);
-                maxHRuling = Math.max(maxHRuling, hr.y1);
-
-                hr.setLeft(page.getLeft());
-                hr.setRight(page.getRight());
-            }
-
-            float contentTop = lines.get(0).getTop();
-            float contentBottom = lines.get(lines.size() - 1).getBottom();
-
+          lines.size() != 0 && meaningfulRulingsCount / lines.size() > 0.33) {
             // incase there are text above top ruling we need a line on top of the page
             if (contentTop < minHRuling) {
                 horizontalR.add(new Ruling(page.getPoints()[0], page.getPoints()[1])); // top line

@@ -133,12 +133,12 @@ public class TestTableDetection {
         });
         // src/test/resources/technology/tabula/
 
-        data = new ArrayList<>();
+        //data = new ArrayList<>();
         //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-006.pdf")});
         //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-011.pdf")});
         //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-015.pdf")});
         //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-016.pdf")});
-        data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-026.pdf")});
+        //data.add(new Object[] {new File("src/test/resources/technology/tabula/icdar2013-dataset/competition-dataset-eu/eu-026.pdf")});
 
         return data;
     }
