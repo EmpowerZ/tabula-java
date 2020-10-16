@@ -4,7 +4,6 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -35,8 +34,6 @@ import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 import technology.tabula.Utils;
 import technology.tabula.extractors.SpreadsheetExtractionAlgorithm;
-
-import javax.imageio.ImageIO;
 
 /**
  * Created by matt on 2015-12-17.
@@ -258,7 +255,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         // part of a table.
 
         boolean foundTable;
-
+        boolean savedEdges = false;
         do {
             foundTable = false;
 
@@ -278,9 +275,13 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             List<TextEdge> leftTextEdges = textEdges.get(TextEdge.LEFT);
             List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
             List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
-            allLeftTextEdges.addAll(leftTextEdges);
-            allMidTextEdges.addAll(midTextEdges);
-            allRightTextEdges.addAll(rightTextEdges);
+
+            if (!savedEdges) {
+                allLeftTextEdges.addAll(leftTextEdges);
+                allMidTextEdges.addAll(midTextEdges);
+                allRightTextEdges.addAll(rightTextEdges);
+                savedEdges = true;
+            }
 
             // find the relevant text edges (the ones we think define where a table is)
             RelevantEdges relevantEdgeInfo = this.getRelevantEdges(textEdges, lines);
@@ -342,9 +343,12 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     }
 
     /**
-     * 1. Find rows whichust intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
+     * 1. Find rows which intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
      * to be considered part of table.
-     * 2. Expand the table to the top and to the bottom using horizontal rulings.
+     * 2. Rows closer than (totalRowSpacing / tableSpaceCount) * 2 to existing table bounds
+     * are added to table as well.
+     * 3. Bounds of all the rows are bounds of the table (meaning everything in between them is also part of table)
+     * 4. Expand the table to the top and to the bottom using horizontal rulings.
      */
     private Rectangle getTableFromText(List<Line> lines,
                                        List<TextEdge> relevantEdges,
@@ -492,18 +496,28 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
 
         // first we'll find the number of lines each type of edge crosses
-        int[][] edgeCountsPerLine = new int[lines.size()][TextEdge.NUM_TYPES];
+        List<TextEdge>[][] edgeCountsPerLine = new List[lines.size()][TextEdge.NUM_TYPES];
+
 
         for (TextEdge edge : leftTextEdges) {
-            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT]++;
+            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT] == null) {
+                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT] = new ArrayList();
+            }
+            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT].add(edge);
         }
 
         for (TextEdge edge : midTextEdges) {
-            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.MID]++;
+            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.MID] == null) {
+                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.MID] = new ArrayList<>();
+            }
+            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.MID].add(edge);
         }
 
         for (TextEdge edge : rightTextEdges) {
-            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT]++;
+            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT] == null) {
+                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT] = new ArrayList<>();
+            }
+            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT].add(edge);
         }
 
         // now let's find the relevant edge type and the number of those edges we should look for
@@ -513,32 +527,121 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         for (int i = edgeCountsPerLine.length - 1; i > 2; i--) {
             // if more than two left edges cross exactly i rows
             // relevantEdgeCount = number of left edges
-            if (edgeCountsPerLine[i][TextEdge.LEFT] > 2 &&
-                    edgeCountsPerLine[i][TextEdge.LEFT] >= edgeCountsPerLine[i][TextEdge.RIGHT] &&
-                    edgeCountsPerLine[i][TextEdge.LEFT] >= edgeCountsPerLine[i][TextEdge.MID]) {
-                relevantEdgeCount = edgeCountsPerLine[i][TextEdge.LEFT];
+            List<TextEdge> leftEdges = edgeCountsPerLine[i][TextEdge.LEFT];
+            List<TextEdge> midEdges = edgeCountsPerLine[i][TextEdge.MID];
+            List<TextEdge> rightEdges = edgeCountsPerLine[i][TextEdge.RIGHT];
+            leftEdges = (leftEdges == null) ? new ArrayList<>() : new ArrayList<>(leftEdges);
+            midEdges = (midEdges == null) ? new ArrayList<>() : new ArrayList<>(midEdges);
+            rightEdges = (rightEdges == null) ? new ArrayList<>() : new ArrayList<>(rightEdges);
+
+            // add edges which have +-1 number of lines
+            // Not mid edges since they are more false-detect prone anyways
+            if (i > 3) {
+                listAddAll(leftEdges, edgeCountsPerLine[i - 1][TextEdge.LEFT]);
+                listAddAll(rightEdges, edgeCountsPerLine[i - 1][TextEdge.RIGHT]);
+
+                if (i < edgeCountsPerLine.length - 1) {
+                    listAddAll(leftEdges, edgeCountsPerLine[i + 1][TextEdge.LEFT]);
+                    listAddAll(rightEdges, edgeCountsPerLine[i + 1][TextEdge.RIGHT]);
+                }
+            }
+
+            // merge adjacent edges together and get edges count of only the biggest group
+            List<LinesGroup> leftGroups = getAdjacentGroups(leftEdges);
+            List<LinesGroup> midGroups = getAdjacentGroups(midEdges);
+            List<LinesGroup> rightGroups = getAdjacentGroups(rightEdges);
+
+            int leftEdgesCount = leftEdges.size();
+            int midEdgesCount = midEdges.size();
+            int rightEdgesCount = rightEdges.size();
+
+            if (leftGroups.size() > 1) leftEdgesCount = Collections.max(leftGroups).count;
+            if (midEdges.size() > 1) midEdgesCount = Collections.max(midGroups).count;
+            if (rightGroups.size() > 1) rightEdgesCount = Collections.max(rightGroups).count;
+
+
+            if (leftEdgesCount > 2 &&
+                    leftEdgesCount >= rightEdgesCount &&
+                    leftEdgesCount >= midEdgesCount) {
+                relevantEdgeCount = leftEdgesCount;
                 relevantEdgeType = TextEdge.LEFT;
                 break;
             }
 
-            if (edgeCountsPerLine[i][TextEdge.RIGHT] > 1 &&
-                    edgeCountsPerLine[i][TextEdge.RIGHT] >= edgeCountsPerLine[i][TextEdge.LEFT] &&
-                    edgeCountsPerLine[i][TextEdge.RIGHT] >= edgeCountsPerLine[i][TextEdge.MID]) {
-                relevantEdgeCount = edgeCountsPerLine[i][TextEdge.RIGHT];
+            if (rightEdgesCount > 1 &&
+                    rightEdgesCount >= leftEdgesCount &&
+                    rightEdgesCount >= midEdgesCount) {
+                relevantEdgeCount = rightEdgesCount;
                 relevantEdgeType = TextEdge.RIGHT;
                 break;
             }
 
-            if (edgeCountsPerLine[i][TextEdge.MID] > 1 &&
-                    edgeCountsPerLine[i][TextEdge.MID] >= edgeCountsPerLine[i][TextEdge.RIGHT] &&
-                    edgeCountsPerLine[i][TextEdge.MID] >= edgeCountsPerLine[i][TextEdge.LEFT]) {
-                relevantEdgeCount = edgeCountsPerLine[i][TextEdge.MID];
+            if (midEdgesCount > 1 &&
+                    midEdgesCount >= rightEdgesCount &&
+                    midEdgesCount >= leftEdgesCount) {
+                relevantEdgeCount = midEdgesCount;
                 relevantEdgeType = TextEdge.MID;
                 break;
             }
         }
 
         return new RelevantEdges(relevantEdgeType, relevantEdgeCount);
+    }
+
+    class LinesGroup extends Line2D.Float implements Comparable<LinesGroup> {
+        int count;
+
+        LinesGroup(Line2D.Float groupLine) {
+            super(groupLine.getP1(), groupLine.getP2());
+            x1 = 0; // X coords doesn't matter
+            x2 = 0;
+            this.count = 1;
+        }
+
+        private boolean mergeByY(LinesGroup group) {
+            if (this.intersectsLine(group)) {
+                count += group.count;
+                y1 = Math.min(group.y1, y1);
+                y2 = Math.max(group.y2, y2);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public int compareTo(LinesGroup group) {
+            return Integer.compare(count, group.count);
+        }
+    }
+
+    private List<LinesGroup> getAdjacentGroups(List<TextEdge> textEdges) {
+        List<LinesGroup> groups = new ArrayList<>();
+        if (textEdges != null) {
+            for (TextEdge textEdge : textEdges) {
+                groups.add(new LinesGroup(textEdge));
+            }
+
+            Iterator<LinesGroup> it = groups.iterator();
+            while (it.hasNext()) {
+                LinesGroup groupI = it.next();
+                for (LinesGroup groupJ : groups) {
+                    if (groupI == groupJ) {
+                        continue;
+                    }
+                    if (groupJ.mergeByY(groupI)) {
+                        it.remove();
+                        break;
+                    }
+                }
+            }
+        }
+        return groups;
+    }
+
+    private static void listAddAll(List a, List b) {
+        if (b != null) {
+            a.addAll(b);
+        }
     }
 
     private TextEdges getTextEdges(List<Line> lines) {
