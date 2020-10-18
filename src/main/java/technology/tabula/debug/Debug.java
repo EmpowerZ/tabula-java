@@ -82,6 +82,14 @@ public class Debug {
         // draw detected lines
         NurminenDetectionAlgorithm detectionAlgorithm = new NurminenDetectionAlgorithm();
         detectionAlgorithm.detect(page);
+        List<NurminenDetectionAlgorithm.TextEdge> allTextEdges = new ArrayList<>(detectionAlgorithm.allLeftTextEdges);
+        allTextEdges.addAll(detectionAlgorithm.allMidTextEdges);
+        allTextEdges.addAll(detectionAlgorithm.allRightTextEdges);
+
+        for (NurminenDetectionAlgorithm.TextEdge textEdge : allTextEdges) {
+            textEdge.x1 = textEdge.x2 = (textEdge.x1 + textEdge.x2) / 2;
+        }
+
         drawShapes(g, detectionAlgorithm.allLeftTextEdges, Color.BLUE);
         drawShapes(g, detectionAlgorithm.allMidTextEdges, Color.GREEN);
         drawShapes(g, detectionAlgorithm.allRightTextEdges, Color.MAGENTA);

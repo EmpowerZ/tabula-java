@@ -11,9 +11,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -60,18 +62,58 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     /**
      * Helper class that encapsulates a text edge
      */
-    private static final class TextEdge extends Line2D.Float {
+    public static final class TextEdge extends Line2D.Float {
         // types of text edges
         public static final int LEFT = 0;
         public static final int MID = 1;
         public static final int RIGHT = 2;
-        public static final int NUM_TYPES = 3;
+        public static final int SIDE_EDGE = 3;
+        public static final int NUM_TYPES = 4;
 
+        /**
+         * Number of text element directly in touch with this edge
+         */
         public int intersectingTextRowCount;
 
         public TextEdge(float x1, float y1, float x2, float y2) {
             super(x1, y1, x2, y2);
             this.intersectingTextRowCount = 0;
+        }
+
+        public float getYOverlapPercent(TextEdge textEdge) {
+            float a = Math.max(y1, textEdge.y1);
+            float b = Math.min(y2, textEdge.y2);
+
+            if (a <= b) {
+                return (b - a)/Math.max(textEdge.y2 - textEdge.y1, y2 - y1);
+            } else {
+                return 0.0f;
+            }
+        }
+
+        public float getWidth() {
+          return x2 - x1;
+        }
+
+        public float getHeight() {
+          return y2 - y1;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TextEdge textEdge = (TextEdge) o;
+            return java.lang.Float.compare(textEdge.x1, x1) == 0 &&
+              java.lang.Float.compare(textEdge.y1, y1) == 0 &&
+              java.lang.Float.compare(textEdge.x2, x2) == 0 &&
+              java.lang.Float.compare(textEdge.y2, y2) == 0 &&
+              intersectingTextRowCount == textEdge.intersectingTextRowCount;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(x1, y1, x2, y2, intersectingTextRowCount);
         }
     }
 
@@ -217,6 +259,13 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
         // now look at text rows to help us find more tables and flesh out existing ones
         List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
+
+        Rectangle textBoundingBox = page.getTextBounds();
+
+        // delete long lines of text. They are likely not a part of table.
+        // This avoids detecting justified text as tables.
+        textChunks.removeIf(textChunk -> textChunk.width > 0.38 * page.getWidth());
+
         List<Line> lines = TextChunk.groupByLines(textChunks);
 
         // first look for text rows that intersect an existing table - those lines should probably be part of the table
@@ -254,6 +303,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         // the most text rows, and then use that magic number of "relevant" edges to decide what text rows should be
         // part of a table.
 
+
         boolean foundTable;
         boolean savedEdges = false;
         do {
@@ -276,12 +326,28 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
             List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
 
+            // remove left edges which are too close to beginning of the page
+            // they don't really indicate a table.
+            for (Iterator<TextEdge> iterator = leftTextEdges.iterator(); iterator.hasNext();) {
+              TextEdge textEdge = iterator.next();
+
+              if (textEdge.x1 < textBoundingBox.getLeft() + 8) {
+                iterator.remove();
+              }
+            }
+
+            reduceBulletPointEdges(leftTextEdges, midTextEdges, rightTextEdges);
+
             if (!savedEdges) {
                 allLeftTextEdges.addAll(leftTextEdges);
                 allMidTextEdges.addAll(midTextEdges);
                 allRightTextEdges.addAll(rightTextEdges);
                 savedEdges = true;
             }
+
+            List<TextEdge> sideTextEdges = new ArrayList<>(rightTextEdges);
+            sideTextEdges.addAll(leftTextEdges);
+            textEdges.add(sideTextEdges);
 
             // find the relevant text edges (the ones we think define where a table is)
             RelevantEdges relevantEdgeInfo = this.getRelevantEdges(textEdges, lines);
@@ -290,14 +356,11 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             if (relevantEdgeInfo.edgeType != -1) {
                 List<TextEdge> relevantEdges = null;
                 switch (relevantEdgeInfo.edgeType) {
-                    case TextEdge.LEFT:
-                        relevantEdges = leftTextEdges;
+                    case TextEdge.SIDE_EDGE:
+                        relevantEdges = sideTextEdges;
                         break;
                     case TextEdge.MID:
                         relevantEdges = midTextEdges;
-                        break;
-                    case TextEdge.RIGHT:
-                        relevantEdges = rightTextEdges;
                         break;
                 }
 
@@ -340,6 +403,40 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         tableSet.addAll(tableAreas);
 
         return new ArrayList<>(tableSet);
+    }
+
+    /**
+     * Let's say we have a list which has bullet points (circles for example).
+     * Every circles will have 3 edges: left, right and center.
+     * Remove these excessive edges and leave only one.
+     *
+     * Otherwise we risk these areas being falsely detected as tables.
+     */
+    private void reduceBulletPointEdges(List<TextEdge> leftTextEdges, List<TextEdge> midTextEdges, List<TextEdge> rightTextEdges) {
+        List<TextEdge> allTextEdges = new ArrayList<>();
+        allTextEdges.addAll(leftTextEdges);
+        allTextEdges.addAll(midTextEdges);
+        allTextEdges.addAll(rightTextEdges);
+        Collections.sort(allTextEdges, (t1, t2) -> Float.compare(t1.y2 - t1.y1, t2.y2 - t2.y1));
+
+
+        Set<TextEdge> edgesToRemove = new HashSet<>();
+        Float prevX = null;
+        TextEdge prevEdge = null;
+        for (Iterator<TextEdge> iterator = allTextEdges.iterator(); iterator.hasNext(); ) {
+            TextEdge textEdge = iterator.next();
+
+            Float x = textEdge.x1;
+            if (prevX != null && Math.abs(x - prevX) < 5 && textEdge.getYOverlapPercent(prevEdge) > 0.9) {
+                edgesToRemove.add(textEdge);
+            }
+            prevX = x;
+            prevEdge = textEdge;
+        }
+
+        leftTextEdges.removeIf(edgesToRemove::contains);
+        midTextEdges.removeIf(edgesToRemove::contains);
+        rightTextEdges.removeIf(edgesToRemove::contains);
     }
 
     /**
@@ -388,7 +485,11 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
 
             for (TextEdge edge : relevantEdges) {
-                if (textRow.intersectsLine(edge)) {
+                if (textRow.intersects(
+                  new Rectangle.Double(edge.getP1().getX(),
+                                      edge.getP1().getY(),
+                                      edge.getWidth(),
+                                      edge.getHeight()))) {
                     numRelevantEdges++;
                 }
             }
@@ -491,19 +592,18 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     }
 
     private RelevantEdges getRelevantEdges(TextEdges textEdges, List<Line> lines) {
-        List<TextEdge> leftTextEdges = textEdges.get(TextEdge.LEFT);
         List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
-        List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
+        List<TextEdge> sideTextEdges = textEdges.get(TextEdge.SIDE_EDGE);
 
         // first we'll find the number of lines each type of edge crosses
         List<TextEdge>[][] edgeCountsPerLine = new List[lines.size()][TextEdge.NUM_TYPES];
 
 
-        for (TextEdge edge : leftTextEdges) {
-            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT] == null) {
-                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT] = new ArrayList();
+        for (TextEdge edge : sideTextEdges) {
+            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.SIDE_EDGE] == null) {
+                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.SIDE_EDGE] = new ArrayList();
             }
-            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.LEFT].add(edge);
+            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.SIDE_EDGE].add(edge);
         }
 
         for (TextEdge edge : midTextEdges) {
@@ -513,13 +613,6 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.MID].add(edge);
         }
 
-        for (TextEdge edge : rightTextEdges) {
-            if (edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT] == null) {
-                edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT] = new ArrayList<>();
-            }
-            edgeCountsPerLine[edge.intersectingTextRowCount - 1][TextEdge.RIGHT].add(edge);
-        }
-
         // now let's find the relevant edge type and the number of those edges we should look for
         // we'll only take a minimum of two edges to look for tables
         int relevantEdgeType = -1;
@@ -527,60 +620,40 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         for (int i = edgeCountsPerLine.length - 1; i > 2; i--) {
             // if more than two left edges cross exactly i rows
             // relevantEdgeCount = number of left edges
-            List<TextEdge> leftEdges = edgeCountsPerLine[i][TextEdge.LEFT];
+            List<TextEdge> sideEdges = edgeCountsPerLine[i][TextEdge.SIDE_EDGE];
             List<TextEdge> midEdges = edgeCountsPerLine[i][TextEdge.MID];
-            List<TextEdge> rightEdges = edgeCountsPerLine[i][TextEdge.RIGHT];
-            leftEdges = (leftEdges == null) ? new ArrayList<>() : new ArrayList<>(leftEdges);
+            sideEdges = (sideEdges == null) ? new ArrayList<>() : new ArrayList<>(sideEdges);
             midEdges = (midEdges == null) ? new ArrayList<>() : new ArrayList<>(midEdges);
-            rightEdges = (rightEdges == null) ? new ArrayList<>() : new ArrayList<>(rightEdges);
 
             // add edges which have +-1 number of lines
             // Not mid edges since they are more false-detect prone anyways
             if (i > 3) {
-                listAddAll(leftEdges, edgeCountsPerLine[i - 1][TextEdge.LEFT]);
-                listAddAll(rightEdges, edgeCountsPerLine[i - 1][TextEdge.RIGHT]);
+                listAddAll(sideEdges, edgeCountsPerLine[i - 1][TextEdge.SIDE_EDGE]);
 
                 if (i < edgeCountsPerLine.length - 1) {
-                    listAddAll(leftEdges, edgeCountsPerLine[i + 1][TextEdge.LEFT]);
-                    listAddAll(rightEdges, edgeCountsPerLine[i + 1][TextEdge.RIGHT]);
+                    listAddAll(sideEdges, edgeCountsPerLine[i + 1][TextEdge.SIDE_EDGE]);
                 }
             }
 
             // merge adjacent edges together and get edges count of only the biggest group
-            List<LinesGroup> leftGroups = getAdjacentGroups(leftEdges);
+            List<LinesGroup> sideGroups = getAdjacentGroups(sideEdges);
             List<LinesGroup> midGroups = getAdjacentGroups(midEdges);
-            List<LinesGroup> rightGroups = getAdjacentGroups(rightEdges);
 
-            int leftEdgesCount = leftEdges.size();
+            int sideEdgesCount = sideEdges.size();
             int midEdgesCount = midEdges.size();
-            int rightEdgesCount = rightEdges.size();
 
-            if (leftGroups.size() > 1) leftEdgesCount = Collections.max(leftGroups).count;
+            if (sideGroups.size() > 1) sideEdgesCount = Collections.max(sideGroups).count;
             if (midEdges.size() > 1) midEdgesCount = Collections.max(midGroups).count;
-            if (rightGroups.size() > 1) rightEdgesCount = Collections.max(rightGroups).count;
 
 
-            if (leftEdgesCount > 2 &&
-                    leftEdgesCount >= rightEdgesCount &&
-                    leftEdgesCount >= midEdgesCount) {
-                relevantEdgeCount = leftEdgesCount;
-                relevantEdgeType = TextEdge.LEFT;
-                break;
-            }
-
-            if (rightEdgesCount > 1 &&
-                    rightEdgesCount >= leftEdgesCount &&
-                    rightEdgesCount >= midEdgesCount) {
-                relevantEdgeCount = rightEdgesCount;
-                relevantEdgeType = TextEdge.RIGHT;
-                break;
-            }
-
-            if (midEdgesCount > 1 &&
-                    midEdgesCount >= rightEdgesCount &&
-                    midEdgesCount >= leftEdgesCount) {
+            if (midEdgesCount > 1) {
                 relevantEdgeCount = midEdgesCount;
                 relevantEdgeType = TextEdge.MID;
+                break;
+            }
+            if (sideEdgesCount > 2) {
+                relevantEdgeCount = sideEdgesCount;
+                relevantEdgeType = TextEdge.SIDE_EDGE;
                 break;
             }
         }
@@ -644,144 +717,181 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         }
     }
 
+    private static class Range {
+        private static final float HALF_RANGE_SIZE = 2.0f;
+        private static final float MID_HALF_RANGE_SIZE = 1.5f;
+
+        private final Type type;
+        float numbersSum;
+        float avg;
+        List<Float> numbers = new ArrayList<>();
+        List<TextChunk> edgeChunks = new ArrayList<>();
+
+        enum Type {
+            LEFT,
+            MID,
+            RIGHT;
+        }
+
+        Range(float firstNumber, TextChunk edgeChunk, Type type) {
+            numbersSum = firstNumber;
+            numbers.add(firstNumber);
+            edgeChunks.add(edgeChunk);
+            avg = firstNumber;
+            this.type = type;
+        }
+
+        float getHalfRangeSize(float number, TextChunk text) {
+            float maxRangeSize = getHalfRangeSizeConst();
+            // give less room for error for far rows
+            if (edgeChunks.size() > 0 && type != Type.MID) {
+                double distance = Math.abs(text.getMinY() - edgeChunks.get(edgeChunks.size() - 1).getMaxY());
+                // multiply by log to make f=maxRangeSize(distance) grow faster than linear
+                double k = 60.0f / (distance * Math.log(Math.max(distance, 10)));
+                maxRangeSize = (float) k * maxRangeSize;
+            }
+
+            return maxRangeSize;
+        }
+
+        boolean add(float number, TextChunk text) {
+            if (Math.abs(number - avg) < getHalfRangeSize(number, text)) {
+                numbersSum += number;
+                numbers.add(number);
+                edgeChunks.add(text);
+                avg = numbersSum / numbers.size();
+                return true;
+            }
+            return false;
+        }
+
+        boolean addToBeginning(float number, TextChunk text) {
+          if (add(number, text)) {
+            numbers.add(0, number);
+            edgeChunks.add(0, text);
+            numbers.remove(numbers.size() - 1);
+            edgeChunks.remove(edgeChunks.size() - 1);
+
+            return true;
+          }
+          return false;
+        }
+
+        boolean isBlownOut(TextChunk text, float left, float mid, float right) {
+            float edge; float halfRangeSize;
+            if (type == Type.MID) {
+                edge = mid;
+                halfRangeSize = getHalfRangeSizeConst();
+            } else {
+                edge = (type == Type.LEFT) ? left : right;
+                halfRangeSize = getHalfRangeSize(edge, text) / 2;
+            }
+
+            return avg > left && avg < right &&
+                Math.abs(edge - avg) >= halfRangeSize;
+        }
+
+        TextEdge getTextEdge(int linesSize) {
+            TextChunk first = edgeChunks.get(0);
+            TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
+
+            TextEdge edge = new TextEdge(avg - getHalfRangeSizeConst(), first.getTop(), avg + getHalfRangeSizeConst(), last.getBottom());
+            edge.intersectingTextRowCount = Math.min(edgeChunks.size(), linesSize);
+
+            return edge;
+        }
+
+        private float getHalfRangeSizeConst() {
+            return (type == Type.MID) ? MID_HALF_RANGE_SIZE : HALF_RANGE_SIZE;
+        }
+    }
+
     private TextEdges getTextEdges(List<Line> lines) {
-
-        // get all text edges (lines that align with the left, middle and right of chunks of text) that extend
-        // uninterrupted over at least REQUIRED_TEXT_LINES_FOR_EDGE lines of text
-        List<TextEdge> leftTextEdges = new ArrayList<>();
-        List<TextEdge> midTextEdges = new ArrayList<>();
-        List<TextEdge> rightTextEdges = new ArrayList<>();
-
-        Map<Integer, List<TextChunk>> currLeftEdges = new HashMap<>();
-        Map<Integer, List<TextChunk>> currMidEdges = new HashMap<>();
-        Map<Integer, List<TextChunk>> currRightEdges = new HashMap<>();
+        List<Range> rangesLeft = new ArrayList<>(); List<Range> rangesMid = new ArrayList<>(); List<Range> rangesRight = new ArrayList<>();
+        List<Range> rangesActiveLeft = new ArrayList<>(); List<Range> rangesActiveMid = new ArrayList<>(); List<Range> rangesActiveRight = new ArrayList<>();
+        List<Range>[] rangesArr = new List[]{rangesLeft, rangesMid, rangesRight};
+        List<Range>[] rangesActiveArr = new List[]{rangesActiveLeft, rangesActiveMid, rangesActiveRight};
 
         for (Line textRow : lines) {
             for (TextChunk text : textRow.getTextElements()) {
-                Integer left = new Integer((int) Math.floor(text.getLeft()));
-                Integer right = new Integer((int) Math.floor(text.getRight()));
-                Integer mid = new Integer(left + ((right - left) / 2));
+                float left = text.getLeft();
+                float right = text.getRight();
+                float mid = left + ((right - left) / 2);
 
-                // first put this chunk into any edge buckets it belongs to
-                List<TextChunk> leftEdge = currLeftEdges.get(left);
-                if (leftEdge == null) {
-                    leftEdge = new ArrayList<>();
-                    currLeftEdges.put(left, leftEdge);
-                }
-                leftEdge.add(text);
+                for (int i = Range.Type.LEFT.ordinal() ; i <= Range.Type.RIGHT.ordinal(); i++) {
+                    List<Range> ranges = rangesArr[i];
+                    List<Range> rangesActive = rangesActiveArr[i];
+                    Range.Type rangeType = Range.Type.values()[i];
 
-                List<TextChunk> midEdge = currMidEdges.get(mid);
-                if (midEdge == null) {
-                    midEdge = new ArrayList<>();
-                    currMidEdges.put(mid, midEdge);
-                }
-                midEdge.add(text);
+                    float number = (rangeType == Range.Type.LEFT) ? left :
+                      (rangeType == Range.Type.MID) ? mid : right;
 
-                List<TextChunk> rightEdge = currRightEdges.get(right);
-                if (rightEdge == null) {
-                    rightEdge = new ArrayList<>();
-                    currRightEdges.put(right, rightEdge);
-                }
-                rightEdge.add(text);
+                    boolean added = false;
+                    Float closestNumber = null;
+                    Range closestRange = null;
+                    for (Range range : rangesActive) {
+                        added = range.add(number, text);
 
-                // now see if this text chunk blows up any other edges
-                for (Iterator<Map.Entry<Integer, List<TextChunk>>> iterator = currLeftEdges.entrySet().iterator(); iterator.hasNext(); ) {
-                    Map.Entry<Integer, List<TextChunk>> entry = iterator.next();
-                    Integer key = entry.getKey();
-                    if (key > left && key < right) {
-                        iterator.remove();
-                        List<TextChunk> edgeChunks = entry.getValue();
-                        if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                            TextChunk first = edgeChunks.get(0);
-                            TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
+                        Float lastNumber = range.numbers.get(range.numbers.size() - 1);
+                        if (closestNumber == null || (number > lastNumber &&
+                          Math.abs(number - lastNumber) < Math.abs(number - closestNumber))) {
+                            closestNumber = lastNumber;
+                            closestRange = range;
+                        }
 
-                            TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                            edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
-
-                            leftTextEdges.add(edge);
+                        if (added) {
+                            break;
                         }
                     }
-                }
+                    if (!added) {
+                        Range newRange = new Range(number, text, rangeType);
 
-                for (Iterator<Map.Entry<Integer, List<TextChunk>>> iterator = currMidEdges.entrySet().iterator(); iterator.hasNext(); ) {
-                    Map.Entry<Integer, List<TextChunk>> entry = iterator.next();
-                    Integer key = entry.getKey();
-                    if (key > left && key < right && Math.abs(key - mid) > 2) {
-                        iterator.remove();
-                        List<TextChunk> edgeChunks = entry.getValue();
-                        if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                            TextChunk first = edgeChunks.get(0);
-                            TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
+                        // backtrack and add close edges from previous lines.
+                        if (closestRange != null) {
+                            for (int j = closestRange.edgeChunks.size() - 1; j >= 0; j--) {
+                                closestNumber = closestRange.numbers.get(j);
 
-                            TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                            edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
+                                if (Math.abs(number - closestNumber) > closestRange.getHalfRangeSizeConst()) {
+                                    break;
+                                }
 
-                            midTextEdges.add(edge);
+                                if (!newRange.addToBeginning(closestNumber, closestRange.edgeChunks.get(j))) {
+                                    break;
+                                }
+                            }
                         }
+                        rangesActive.add(newRange);
                     }
-                }
 
-                for (Iterator<Map.Entry<Integer, List<TextChunk>>> iterator = currRightEdges.entrySet().iterator(); iterator.hasNext(); ) {
-                    Map.Entry<Integer, List<TextChunk>> entry = iterator.next();
-                    Integer key = entry.getKey();
-                    if (key > left && key < right) {
-                        iterator.remove();
-                        List<TextChunk> edgeChunks = entry.getValue();
-                        if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                            TextChunk first = edgeChunks.get(0);
-                            TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
-
-                            TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                            edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
-
-                            rightTextEdges.add(edge);
+                    rangesActive.removeIf(range -> {
+                        if (range.isBlownOut(text, left, mid, right)) {
+                            if (range.numbers.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
+                                ranges.add(range);
+                            }
+                            return true;
                         }
-                    }
+                        return false;
+                    });
                 }
             }
         }
 
-        // add the leftovers
-        for (Integer key : currLeftEdges.keySet()) {
-            List<TextChunk> edgeChunks = currLeftEdges.get(key);
-            if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                TextChunk first = edgeChunks.get(0);
-                TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
-
-                TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
-
-                leftTextEdges.add(edge);
+        for (int i = Range.Type.LEFT.ordinal() ; i <= Range.Type.RIGHT.ordinal(); i++) {
+            for (Range range : rangesActiveArr[i]) {
+                if (range.numbers.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
+                    rangesArr[i].add(range);
+                }
             }
         }
 
-        for (Integer key : currMidEdges.keySet()) {
-            List<TextChunk> edgeChunks = currMidEdges.get(key);
-            if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                TextChunk first = edgeChunks.get(0);
-                TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
-
-                TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
-
-                midTextEdges.add(edge);
+        List<TextEdge>[] textEdges = new List[]{new ArrayList<>(), new ArrayList<>(), new ArrayList<>()};
+        for (int i = Range.Type.LEFT.ordinal() ; i <= Range.Type.RIGHT.ordinal(); i++) {
+            for (Range range : rangesArr[i]) {
+                textEdges[i].add(range.getTextEdge(lines.size()));
             }
         }
 
-        for (Integer key : currRightEdges.keySet()) {
-            List<TextChunk> edgeChunks = currRightEdges.get(key);
-            if (edgeChunks.size() >= REQUIRED_TEXT_LINES_FOR_EDGE) {
-                TextChunk first = edgeChunks.get(0);
-                TextChunk last = edgeChunks.get(edgeChunks.size() - 1);
-
-                TextEdge edge = new TextEdge(key, first.getTop(), key, last.getBottom());
-                edge.intersectingTextRowCount = Math.min(edgeChunks.size(), lines.size());
-
-                rightTextEdges.add(edge);
-            }
-        }
-
-        return new TextEdges(leftTextEdges, midTextEdges, rightTextEdges);
+        return new TextEdges(textEdges[0], textEdges[1], textEdges[2]);
     }
 
     private List<Rectangle> getTableAreasFromCells(List<? extends Rectangle> cells) {
