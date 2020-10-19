@@ -10,11 +10,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -58,6 +56,38 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     public List<TextEdge> allLeftTextEdges = new ArrayList<>();
     public List<TextEdge> allMidTextEdges = new ArrayList<>();
     public List<TextEdge> allRightTextEdges = new ArrayList<>();
+    private Rectangle textBoundingBox;
+    private List<Line> allLines;
+    private List<Ruling> horizontalRulings;
+
+    // create a set of our current tables that will eliminate duplicate tables
+    private static final Comparator<Rectangle> TABLE_COMPARATOR = new Comparator<Rectangle>() {
+        @Override
+        public int compare(Rectangle o1, Rectangle o2) {
+            if (o1.equals(o2)) {
+                return 0;
+            }
+
+            // o1 is "equal" to o2 if o2 contains all of o1
+            if (o2.contains(o1)) {
+                return 0;
+            }
+
+            if (o1.contains(o2)) {
+                return 0;
+            }
+
+            // otherwise see if these tables are "mostly" the same
+            float overlap = o1.overlapRatio(o2);
+            if (overlap >= IDENTICAL_TABLE_OVERLAP_RATIO) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+    };
+    private float rowHeightThresholdMultBottom = 1.5f;
+    private float rowHeightThresholdMultTop = 3.8f;
 
     /**
      * Helper class that encapsulates a text edge
@@ -167,7 +197,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
         //Utils.save(image, "/tmp/lool");
 
-        List<Ruling> horizontalRulings = this.getHorizontalRulings(image);
+        horizontalRulings = this.getHorizontalRulings(image);
 
         // now check the page for vertical lines, but remove the text first to make things less confusing
         PDDocument removeTextDocument = null;
@@ -260,13 +290,14 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         // now look at text rows to help us find more tables and flesh out existing ones
         List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
 
-        Rectangle textBoundingBox = page.getTextBounds();
+        textBoundingBox = page.getTextBounds();
 
         // delete long lines of text. They are likely not a part of table.
         // This avoids detecting justified text as tables.
         textChunks.removeIf(textChunk -> textChunk.width > 0.38 * page.getWidth());
 
         List<Line> lines = TextChunk.groupByLines(textChunks);
+        allLines = new ArrayList<>(lines);
 
         // first look for text rows that intersect an existing table - those lines should probably be part of the table
         for (Line textRow : lines) {
@@ -326,18 +357,6 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
             List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
 
-            // remove left edges which are too close to beginning of the page
-            // they don't really indicate a table.
-            for (Iterator<TextEdge> iterator = leftTextEdges.iterator(); iterator.hasNext();) {
-              TextEdge textEdge = iterator.next();
-
-              if (textEdge.x1 < textBoundingBox.getLeft() + 8) {
-                iterator.remove();
-              }
-            }
-
-            reduceBulletPointEdges(leftTextEdges, midTextEdges, rightTextEdges);
-
             if (!savedEdges) {
                 allLeftTextEdges.addAll(leftTextEdges);
                 allMidTextEdges.addAll(midTextEdges);
@@ -373,36 +392,42 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
         } while (foundTable);
 
-        // create a set of our current tables that will eliminate duplicate tables
-        Set<Rectangle> tableSet = new TreeSet<>(new Comparator<Rectangle>() {
-            @Override
-            public int compare(Rectangle o1, Rectangle o2) {
-                if (o1.equals(o2)) {
-                    return 0;
-                }
-
-                // o1 is "equal" to o2 if o2 contains all of o1
-                if (o2.contains(o1)) {
-                    return 0;
-                }
-
-                if (o1.contains(o2)) {
-                    return 0;
-                }
-
-                // otherwise see if these tables are "mostly" the same
-                float overlap = o1.overlapRatio(o2);
-                if (overlap >= IDENTICAL_TABLE_OVERLAP_RATIO) {
-                    return 0;
-                } else {
-                    return 1;
-                }
-            }
-        });
-
+        Set<Rectangle> tableSet = new TreeSet<>(TABLE_COMPARATOR);
         tableSet.addAll(tableAreas);
 
         return new ArrayList<>(tableSet);
+    }
+
+    /***
+     * Finds biggest table on the page.
+     *
+     * Is prone to false detects on pages where there are no tables.
+     * Also if there are more than one table, it will merge them.
+     * However can find tables {@link NurminenDetectionAlgorithm#detect} fails to find.
+     */
+    public Rectangle bluntDetect() {
+        if (allLines == null || textBoundingBox == null || horizontalRulings == null) {
+            throw new RuntimeException("Please run detect first!");
+        }
+
+        // get text edges from remaining lines in the document
+        TextEdges textEdges = this.getTextEdges(allLines);
+        List<TextEdge> leftTextEdges = textEdges.get(TextEdge.LEFT);
+        List<TextEdge> rightTextEdges = textEdges.get(TextEdge.RIGHT);
+
+        List<TextEdge> sideTextEdges = new ArrayList<>(rightTextEdges);
+        sideTextEdges.addAll(leftTextEdges);
+
+        for (float tagetOverlap = 0.7f; tagetOverlap >= 0.1f; tagetOverlap -= 0.1f) {
+            for (int edgeCount = 8; edgeCount >= 3; edgeCount--) {
+                Rectangle table = this.getTableFromText(allLines, sideTextEdges, edgeCount, horizontalRulings);
+
+                if (table != null && table.verticalOverlapPercent(textBoundingBox) > tagetOverlap) {
+                    return table;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -442,8 +467,8 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     /**
      * 1. Find rows which intersect with at least "relevantEdgeCount" of edges of relevant type (relevantEdges)
      * to be considered part of table.
-     * 2. Rows closer than (totalRowSpacing / tableSpaceCount) * 2 to existing table bounds
-     * are added to table as well.
+     * 2. Regions with relevant number of edges are united in case all rows between them are
+     * closer than (totalRowSpacing / tableSpaceCount) * 2.5f
      * 3. Bounds of all the rows are bounds of the table (meaning everything in between them is also part of table)
      * 4. Expand the table to the top and to the bottom using horizontal rulings.
      */
@@ -461,9 +486,31 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         int tableSpaceCount = 0;
         float totalRowSpacing = 0;
 
+        List<Rectangle> edgeRectangles = new ArrayList<>();
+        for (TextEdge edge : relevantEdges) {
+            edgeRectangles.add(new Rectangle((float) edge.getP1().getY(),
+                                             (float) edge.getP1().getX(),
+                                             edge.getWidth(),
+                                             edge.getHeight()));
+        }
+
         // go through the lines and find the ones that have the correct count of the relevant edges
         for (Line textRow : lines) {
             int numRelevantEdges = 0;
+            int numRelevantEdgesToFullRow = 0;
+
+            Rectangle fullTextRowRect = new Rectangle(textRow.getTop(), textRow.getLeft(), (float) textRow.getWidth(), (float) textRow.getHeight());
+            fullTextRowRect.setRight(textBoundingBox.getRight());
+            fullTextRowRect.setLeft(textBoundingBox.getLeft());
+
+            for (Rectangle edgeRectangle : edgeRectangles) {
+                if (textRow.intersects(edgeRectangle)) {
+                    numRelevantEdges++;
+                }
+                if (fullTextRowRect.intersects(edgeRectangle)) {
+                    numRelevantEdgesToFullRow++;
+                }
+            }
 
             if (firstTableRow != null && tableSpaceCount > 0) {
                 // check to make sure this text row is within a line or so of the other lines already added
@@ -471,7 +518,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 float tableLineThreshold = (totalRowSpacing / tableSpaceCount) * 2.5f;
                 float lineDistance = textRow.getTop() - prevRow.getTop();
 
-                if (lineDistance > tableLineThreshold) {
+                if (lineDistance > tableLineThreshold || numRelevantEdgesToFullRow == 0) {
                     lastTableRow = prevRow;
                     break;
                 }
@@ -484,15 +531,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 relativeEdgeDifferenceThreshold = 0;
             }
 
-            for (TextEdge edge : relevantEdges) {
-                if (textRow.intersects(
-                  new Rectangle.Double(edge.getP1().getX(),
-                                      edge.getP1().getY(),
-                                      edge.getWidth(),
-                                      edge.getHeight()))) {
-                    numRelevantEdges++;
-                }
-            }
+
 
             // see if we have a candidate text row
             if (numRelevantEdges >= (relevantEdgeCount - relativeEdgeDifferenceThreshold)) {
@@ -540,7 +579,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             avgRowHeight = lastTableRow.height;
         }
 
-        float rowHeightThreshold = avgRowHeight * 1.5f;
+        float rowHeightThreshold = avgRowHeight * rowHeightThresholdMultBottom;
 
         // check lines after the bottom of the table
         for (Line2D.Float ruling : horizontalRulings) {
@@ -563,7 +602,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
         // do the same for lines at the top, but make the threshold greater since table headings tend to be
         // larger to fit up to three-ish rows of text (at least but we don't want to grab too much)
-        rowHeightThreshold = avgRowHeight * 3.8f;
+        rowHeightThreshold = avgRowHeight * rowHeightThresholdMultTop;
 
         for (int i = horizontalRulings.size() - 1; i >= 0; i--) {
             Line2D.Float ruling = horizontalRulings.get(i);
@@ -891,6 +930,18 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
         }
 
+        // remove left edges which are too close to beginning of the page
+        // they don't really indicate a table.
+        for (Iterator<TextEdge> iterator = textEdges[0].iterator(); iterator.hasNext();) {
+            TextEdge textEdge = iterator.next();
+
+            if (textEdge.x1 < textBoundingBox.getLeft() + 8) {
+                iterator.remove();
+            }
+        }
+
+        reduceBulletPointEdges(textEdges[0], textEdges[1], textEdges[2]);
+
         return new TextEdges(textEdges[0], textEdges[1], textEdges[2]);
     }
 
@@ -1107,5 +1158,13 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         out.close();
         newPage.setContents(newContents);
         return document;
+    }
+
+    public void setRowHeightThresholdMultBottom(float rowHeightThresholdMultBottom) {
+        this.rowHeightThresholdMultBottom = rowHeightThresholdMultBottom;
+    }
+
+    public void setRowHeightThresholdMultTop(float rowHeightThresholdMultTop) {
+        this.rowHeightThresholdMultTop = rowHeightThresholdMultTop;
     }
 }

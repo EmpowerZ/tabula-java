@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.cli.*;
@@ -146,6 +147,15 @@ public class Debug {
         drawShapes(g, tables);
     }
 
+    private static void debugBluntlyDetectedTables(Graphics2D g, Page page) {
+        NurminenDetectionAlgorithm detectionAlgorithm = new NurminenDetectionAlgorithm();
+        detectionAlgorithm.detect(page);
+        Rectangle table = detectionAlgorithm.bluntDetect();
+        if (table != null) {
+            drawShapes(g, Collections.singleton(table));
+        }
+    }
+
     private static void drawShapes(Graphics2D g, Collection<? extends Shape> shapes, Stroke stroke, Color color) {
         int i = 0;
         g.setStroke(stroke);
@@ -254,7 +264,8 @@ public class Debug {
                                   boolean drawTextChunks, boolean drawSpreadsheets, boolean drawRulings, boolean drawIntersections,
                                   boolean drawColumns, boolean drawCharacters, boolean drawArea, boolean drawCells,
                                   boolean drawUnprocessedRulings, boolean drawProjectionProfile, boolean drawClippingPaths,
-                                  boolean drawDetectedTables, boolean drawNurminenEdges, boolean drawMixedRulings) throws IOException {
+                                  boolean drawDetectedTables, boolean drawBluntlyDetectedTables,
+                                  boolean drawNurminenEdges, boolean drawMixedRulings) throws IOException {
         PDDocument document = PDDocument.load(new File(pdfPath));
 
         ObjectExtractor oe = new ObjectExtractor(document);
@@ -310,6 +321,9 @@ public class Debug {
         if (drawDetectedTables) {
             debugDetectedTables(g, page);
         }
+        if (drawBluntlyDetectedTables) {
+            debugBluntlyDetectedTables(g, page);
+        }
         if (drawNurminenEdges) {
             debugNurminenEdges(g, page);
         }
@@ -338,6 +352,7 @@ public class Debug {
         o.addOption("f", "profile", false, "Show projection profile");
         o.addOption("z", "clipping-paths", false, "Show clipping paths");
         o.addOption("d", "detected-tables", false, "Show detected tables");
+        o.addOption("b", "bluntly-detected-tables", false, "Show detected tables");
         o.addOption("n", "nurminen-edges", false, "Show ALL edges detected by Nurminen table detection code.");
         o.addOption("m", "mixed-rulings", false, "Show ruling created by mixed extraction algorithm");
 
@@ -416,7 +431,7 @@ public class Debug {
                         i - 1, area, line.hasOption('t'), line.hasOption('s'), line.hasOption('r'), line.hasOption('i'),
                         line.hasOption('c'), line.hasOption('e'), line.hasOption('g'), line.hasOption('l'),
                         line.hasOption('u'), line.hasOption('f'), line.hasOption('z'), line.hasOption('d'),
-                        line.hasOption('n'), line.hasOption('m'));
+                        line.hasOption('b'), line.hasOption('n'), line.hasOption('m'));
             }
         } catch (ParseException e) {
             System.err.println("Error: " + e.getMessage());

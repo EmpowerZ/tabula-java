@@ -55,7 +55,7 @@ public class TestCommandLineApp {
         copiedPDF.toFile().deleteOnExit();
 
         this.csvFromCommandLineArgs(new String[]{
-                "-b", tmpFolder.toString(),
+                "-m", tmpFolder.toString(),
                 "-p", "1", "-a",
                 "150.56,58.9,654.7,536.12", "-f",
                 "CSV"

@@ -6,6 +6,7 @@ import java.io.FilenameFilter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.cli.CommandLine;
@@ -88,12 +89,12 @@ public class CommandLineApp {
     }
 
     public void extractTables(CommandLine line) throws ParseException {
-        if (line.hasOption('b')) {
+        if (line.hasOption('m')) {
             if (line.getArgs().length != 0) {
                 throw new ParseException("Filename specified with batch\nTry --help for help");
             }
 
-            File pdfDirectory = new File(line.getOptionValue('b'));
+            File pdfDirectory = new File(line.getOptionValue('m'));
             if (!pdfDirectory.isDirectory()) {
                 throw new ParseException("Directory does not exist or is not a directory");
             }
@@ -269,6 +270,7 @@ public class CommandLineApp {
     private static TableExtractor createExtractor(CommandLine line) throws ParseException {
         TableExtractor extractor = new TableExtractor();
         extractor.setGuess(line.hasOption('g'));
+        extractor.setBluntGuess(line.hasOption('b'));
         extractor.setMethod(CommandLineApp.whichExtractionMethod(line));
         extractor.setUseLineReturns(line.hasOption('u'));
 
@@ -310,6 +312,7 @@ public class CommandLineApp {
         o.addOption("v", "version", false, "Print version and exit.");
         o.addOption("h", "help", false, "Print this help text.");
         o.addOption("g", "guess", false, "Guess the portion of the page to analyze per page.");
+        o.addOption("b", "blunt", false, "Guess the portion of the page to analyze per page using blunt detection");
         o.addOption("r", "spreadsheet", false, "[Deprecated in favor of -l/--lattice] Force PDF to be extracted using spreadsheet-style extraction (if there are ruling lines separating each cell, as in a PDF of an Excel spreadsheet)");
         o.addOption("n", "no-spreadsheet", false, "[Deprecated in favor of -t/--stream] Force PDF not to be extracted using spreadsheet-style extraction (if there are no ruling lines separating each cell)");
         o.addOption("l", "lattice", false, "Force PDF to be extracted using lattice-mode extraction (if there are ruling lines separating each cell, as in a PDF of an Excel spreadsheet)");
@@ -317,8 +320,8 @@ public class CommandLineApp {
         o.addOption("i", "silent", false, "Suppress all stderr output.");
         o.addOption("u", "use-line-returns", false, "Use embedded line returns in cells. (Only in spreadsheet mode.)");
         // o.addOption("d", "debug", false, "Print detected table areas instead of processing.");
-        o.addOption(Option.builder("b")
-                .longOpt("batch")
+        o.addOption(Option.builder("m")
+                .longOpt("multiple")
                 .desc("Convert all .pdfs in the provided directory.")
                 .hasArg()
                 .argName("DIRECTORY")
@@ -369,6 +372,7 @@ public class CommandLineApp {
     }
 
     private static class TableExtractor {
+        private boolean bluntGuess = false;
         private boolean guess = false;
         private boolean useLineReturns = false;
         private BasicExtractionAlgorithm basicExtractor = new BasicExtractionAlgorithm();
@@ -391,6 +395,10 @@ public class CommandLineApp {
 
         public void setGuess(boolean guess) {
             this.guess = guess;
+        }
+
+        public void setBluntGuess(boolean bluntGuess) {
+            this.bluntGuess = bluntGuess;
         }
 
         public void setUseLineReturns(boolean useLineReturns) {
@@ -419,12 +427,16 @@ public class CommandLineApp {
         }
 
         public List<Table> extractTablesBasic(Page page) {
-            basicExtractor.setMixedTableExtractionEnabled(guess);
-            if (guess) {
+            basicExtractor.setMixedTableExtractionEnabled(guess || bluntGuess);
+            if (guess || bluntGuess) {
                 // guess the page areas to extract using a detection algorithm
                 // currently we only have a detector that uses spreadsheets to find table areas
-                DetectionAlgorithm detector = new NurminenDetectionAlgorithm();
+                NurminenDetectionAlgorithm detector = new NurminenDetectionAlgorithm();
                 List<Rectangle> guesses = detector.detect(page);
+                if (bluntGuess) {
+                    Rectangle guess = detector.bluntDetect();
+                    guesses = (guess == null) ? new ArrayList<>() : Collections.singletonList(guess);
+                }
                 List<Table> tables = new ArrayList<>();
 
                 for (Rectangle guessRect : guesses) {
@@ -457,9 +469,13 @@ public class CommandLineApp {
             // TODO add useLineReturns
             List<Table> tables = new ArrayList<>();
 
-            if (guess) {
-                DetectionAlgorithm detector = new NurminenDetectionAlgorithm();
+            if (guess || bluntGuess) {
+                NurminenDetectionAlgorithm detector = new NurminenDetectionAlgorithm();
                 List<Rectangle> guesses = detector.detect(page);
+                if (bluntGuess) {
+                    Rectangle guess = detector.bluntDetect();
+                    guesses = (guess == null) ? new ArrayList<>() : Collections.singletonList(guess);
+                }
                 for (Rectangle guessRect : guesses) {
                     Page guess = page.getArea(guessRect);
                     tables.addAll(spreadsheetExtractor.extract(guess));

@@ -62,6 +62,11 @@ public class Rectangle extends Rectangle2D.Float {
 		return verticalOverlap(other) > 0;
 	}
 
+	public float verticalOverlapPercent(Rectangle other) {
+		float overlap = verticalOverlap(other);
+		return (overlap < 0) ? 0 : (float) (overlap / Math.max(getHeight(), other.getHeight()));
+	}
+
 	public float horizontalOverlap(Rectangle other) {
 		return Math.max(0, Math.min(this.getRight(), other.getRight()) - Math.max(this.getLeft(), other.getLeft()));
 	}
