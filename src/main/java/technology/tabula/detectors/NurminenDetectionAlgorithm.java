@@ -33,6 +33,7 @@ import technology.tabula.Ruling;
 import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 import technology.tabula.Utils;
+import technology.tabula.extractors.BasicExtractionAlgorithm;
 import technology.tabula.extractors.SpreadsheetExtractionAlgorithm;
 
 /**
@@ -59,6 +60,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     private Rectangle textBoundingBox;
     private List<Line> allLines;
     private List<Ruling> horizontalRulings;
+    private Page page;
 
     // create a set of our current tables that will eliminate duplicate tables
     private static final Comparator<Rectangle> TABLE_COMPARATOR = new Comparator<Rectangle>() {
@@ -87,7 +89,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         }
     };
     private float rowHeightThresholdMultBottom = 1.5f;
-    private float rowHeightThresholdMultTop = 3.8f;
+    private float rowHeightThresholdMultTop = 2.5f;
 
     /**
      * Helper class that encapsulates a text edge
@@ -182,6 +184,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
      * 7. Expand the area into top and bottom using horizontal rulings.
      */
     public List<Rectangle> detect(Page page) {
+        this.page = page;
 
         // get horizontal & vertical lines
         // we get these from an image of the PDF and not the PDF itself because sometimes there are invisible PDF
@@ -387,7 +390,9 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
                 if (table != null) {
                     foundTable = true;
-                    tableAreas.add(table);
+
+                    Rectangle expandedTable = expand(page, table);
+                    tableAreas.add(expandedTable);
                 }
             }
         } while (foundTable);
@@ -423,12 +428,88 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 Rectangle table = this.getTableFromText(allLines, sideTextEdges, edgeCount, horizontalRulings);
 
                 if (table != null && table.verticalOverlapPercent(textBoundingBox) > tagetOverlap) {
-                    return table;
+                    return expand(page, table);
                 }
             }
         }
         return null;
     }
+
+    /**
+     * Expands the table to top and bottom, until new content intersects
+     * table column lines (see {@link BasicExtractionAlgorithm#columnPositions(List)})
+     */
+    private Rectangle expand(Page page, Rectangle table) {
+        Page tablePage = page.getArea(table);
+        List<TextChunk> textChunks = TextElement.mergeWords(tablePage.getText());
+        List<Line> relevantLines = TextChunk.groupByLines(textChunks);
+
+        List<Float> columns = BasicExtractionAlgorithm.columnPositions(relevantLines);
+
+        List<Ruling> verticalR = new ArrayList<>();
+        for (Float column : columns) {
+            float top = (page == null) ? table.getTop() : page.getTop();
+            double height = (page == null) ? table.getHeight() : page.getHeight();
+            // We add + 1 to column since if don't do it SpreadSheetExtractor can cut last letter.
+            verticalR.add(new Ruling(top, column + 1, 0.1f, (float) height));
+        }
+
+        Page aboveTable = page.getArea(page.getTop(),
+                                       table.getLeft(),
+                                       table.getTop(),
+                                       table.getRight());
+        Page belowTable = page.getArea(table.getBottom(),
+                                       table.getLeft(),
+                                       page.getBottom(),
+                                       table.getRight());
+
+        Rectangle withBelow = expandIntoArea(table, verticalR, belowTable, false);
+        Rectangle rectangle = expandIntoArea(withBelow, verticalR, aboveTable, true);
+
+        return rectangle;
+    }
+
+    private Rectangle expandIntoArea(Rectangle initialTablePage, List<Ruling> verticalR,
+                                     Page pageAreaToScan, boolean topPartOfTable) {
+        List<TextChunk> expandedTextChunks = TextElement.mergeWords(pageAreaToScan.getText());
+        List<Line> expandedLines = TextChunk.groupByLines(expandedTextChunks);
+
+        if (topPartOfTable) {
+            Collections.reverse(expandedLines);
+        }
+
+        Rectangle area = new Rectangle(initialTablePage.getTop(), initialTablePage.getLeft(), initialTablePage.width, initialTablePage.height);
+        outerloop:
+        for (Line line : expandedLines) {
+            for (TextChunk textChunk : line.getTextElements()) {
+                if (textChunk.isSameChar(Line.WHITE_SPACE_CHARS)) {
+                    continue;
+                }
+
+                for (Ruling ruling : verticalR) {
+                    TextChunk tc = textChunk;
+                    if (textChunk.width > 5) { // give 5 pixel of room for error
+                        tc = new TextChunk(textChunk.getTop(), textChunk.getLeft(),
+                                           textChunk.width - 5, textChunk.height);
+                    }
+
+                    if (tc.intersectsLine(ruling)) {
+                        break outerloop;
+                    }
+                }
+            }
+            area.merge(line);
+        }
+
+        if (topPartOfTable) {
+            area.setTop(area.getTop() - 1); // otherwise text can get cut-off
+        } else {
+            area.setBottom(area.getBottom() + 1); // otherwise text can get cut-off
+        }
+
+        return area;
+    }
+
 
     /**
      * Let's say we have a list which has bullet points (circles for example).
