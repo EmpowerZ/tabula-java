@@ -55,7 +55,7 @@ xsi:noNamespaceSchemaLocation="competition-entry-region-model.xsd" filename='bm_
          <instruction instr-id='116' subinstr-id='6'/>
          <instruction instr-id='120'/>
          <instruction instr-id='122'/>
-         <bounding-box x1='92' y1='431' x2='470' y2='666'/>
+         <bounding-box x1='92' y1='431' x2='470' y2='644'/>
       </region>
    </table>
    <table id='2'>
@@ -297,7 +297,7 @@ xsi:noNamespaceSchemaLocation="competition-entry-region-model.xsd" filename='bm_
          <instruction instr-id='323' subinstr-id='10'/>
          <instruction instr-id='344' subinstr-id='8'/>
          <instruction instr-id='344' subinstr-id='10'/>
-         <bounding-box x1='74' y1='193' x2='502' y2='692'/>
+         <bounding-box x1='74' y1='193' x2='502' y2='688'/>
       </region>
    </table>
    <table id='3'>

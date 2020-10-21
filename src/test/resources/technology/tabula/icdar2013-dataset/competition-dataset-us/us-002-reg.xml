@@ -1229,7 +1229,7 @@
          <instruction instr-id='383' subinstr-id='8'/>
          <instruction instr-id='383' subinstr-id='10'/>
          <instruction instr-id='383' subinstr-id='12'/>
-         <bounding-box x1='74' y1='195' x2='536' y2='670'/>
+         <bounding-box x1='74' y1='195' x2='536' y2='620'/>
       </region>
    </table>
 </document>

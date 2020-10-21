@@ -1567,7 +1567,7 @@
          <instruction instr-id='471' subinstr-id='2'/>
          <instruction instr-id='474'/>
          <instruction instr-id='474' subinstr-id='2'/>
-         <bounding-box x1='56' y1='556' x2='572' y2='687'/>
+         <bounding-box x1='56' y1='556' x2='572' y2='683'/>
       </region>
    </table>
    <table id='3'>

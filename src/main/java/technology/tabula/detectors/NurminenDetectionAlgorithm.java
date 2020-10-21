@@ -54,6 +54,8 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     private static final int REQUIRED_TEXT_LINES_FOR_EDGE = 4;
     private static final int REQUIRED_CELLS_FOR_TABLE = 4;
     private static final float IDENTICAL_TABLE_OVERLAP_RATIO = 0.9f;
+    private static final float ROW_HEIGHT_THRESHOLD_MULT_BOTTOM = 1.5f;
+    private static final float ROW_HEIGHT_THRESHOLD_MULT_TOP = 2f;
     public List<TextEdge> allLeftTextEdges = new ArrayList<>();
     public List<TextEdge> allMidTextEdges = new ArrayList<>();
     public List<TextEdge> allRightTextEdges = new ArrayList<>();
@@ -88,8 +90,6 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
         }
     };
-    private float rowHeightThresholdMultBottom = 1.5f;
-    private float rowHeightThresholdMultTop = 2.5f;
 
     /**
      * Helper class that encapsulates a text edge
@@ -660,7 +660,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             avgRowHeight = lastTableRow.height;
         }
 
-        float rowHeightThreshold = avgRowHeight * rowHeightThresholdMultBottom;
+        float rowHeightThreshold = avgRowHeight * ROW_HEIGHT_THRESHOLD_MULT_BOTTOM;
 
         // check lines after the bottom of the table
         for (Line2D.Float ruling : horizontalRulings) {
@@ -683,7 +683,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
         // do the same for lines at the top, but make the threshold greater since table headings tend to be
         // larger to fit up to three-ish rows of text (at least but we don't want to grab too much)
-        rowHeightThreshold = avgRowHeight * rowHeightThresholdMultTop;
+        rowHeightThreshold = avgRowHeight * ROW_HEIGHT_THRESHOLD_MULT_TOP;
 
         for (int i = horizontalRulings.size() - 1; i >= 0; i--) {
             Line2D.Float ruling = horizontalRulings.get(i);
@@ -1239,13 +1239,5 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         out.close();
         newPage.setContents(newContents);
         return document;
-    }
-
-    public void setRowHeightThresholdMultBottom(float rowHeightThresholdMultBottom) {
-        this.rowHeightThresholdMultBottom = rowHeightThresholdMultBottom;
-    }
-
-    public void setRowHeightThresholdMultTop(float rowHeightThresholdMultTop) {
-        this.rowHeightThresholdMultTop = rowHeightThresholdMultTop;
     }
 }

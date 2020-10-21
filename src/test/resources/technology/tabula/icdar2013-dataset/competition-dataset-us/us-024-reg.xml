@@ -1026,7 +1026,7 @@ xsi:noNamespaceSchemaLocation="competition-entry-region-model.xsd" filename='bm_
          <instruction instr-id='289' subinstr-id='18'/>
          <instruction instr-id='289' subinstr-id='20'/>
          <instruction instr-id='289' subinstr-id='22'/>
-         <bounding-box x1='44' y1='175' x2='568' y2='707'/>
+         <bounding-box x1='44' y1='175' x2='568' y2='675'/>
       </region>
    </table>
    <table id='3'>
