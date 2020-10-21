@@ -251,6 +251,12 @@ public class TextChunk extends RectangularTextContainer<TextElement> implements 
                     if (subSequenceStart == 0 && subSequenceLength <= this.getTextElements().size() - 1) {
                         t = this.splitAt(subSequenceLength);
                     } else {
+                        // leave one symbol
+                        if (isLtrDominant() == 1
+                            && subSequenceStart < this.getTextElements().size() - 1) {
+                            subSequenceStart++;
+                        }
+
                         t = this.splitAt(subSequenceStart);
                         rv.add(t[0]);
                     }
