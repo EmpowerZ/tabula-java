@@ -61,6 +61,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
     public List<TextEdge> allRightTextEdges = new ArrayList<>();
     private Rectangle textBoundingBox;
     private List<Line> allLines;
+    private ArrayList<Line> allShortLines;
     private List<Ruling> horizontalRulings;
     private Page page;
 
@@ -290,15 +291,10 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             ruling.y2 = ruling.y2 / 2;
         }
 
-        // now look at text rows to help us find more tables and flesh out existing ones
-        List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
-
         textBoundingBox = page.getTextBounds();
 
-        // delete long lines of text. They are likely not a part of table.
-        // This avoids detecting justified text as tables.
-        textChunks.removeIf(textChunk -> textChunk.width > 0.38 * page.getWidth());
-
+        // now look at text rows to help us find more tables and flesh out existing ones
+        List<TextChunk> textChunks = TextElement.mergeWords(page.getText());
         List<Line> lines = TextChunk.groupByLines(textChunks);
         allLines = new ArrayList<>(lines);
 
@@ -329,6 +325,13 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
         }
 
+        // delete long lines of text. They are likely not a part of table.
+        // This avoids detecting justified text as tables.
+        textChunks.removeIf(textChunk -> textChunk.width >= 0.4 * textBoundingBox.getWidth());
+        List<Line> shortLines = TextChunk.groupByLines(textChunks);
+        allShortLines = new ArrayList<>(shortLines);
+
+
         // lastly, there may be some tables that don't have any vertical rulings at all
         // we'll use text edges we've found to try and guess which text rows are part of a table
 
@@ -345,6 +348,15 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
             // get rid of any text lines contained within existing tables, this allows us to find more tables
             for (Iterator<Line> iterator = lines.iterator(); iterator.hasNext(); ) {
+                Line textRow = iterator.next();
+                for (Rectangle table : tableAreas) {
+                    if (table.contains(textRow)) {
+                        iterator.remove();
+                        break;
+                    }
+                }
+            }
+            for (Iterator<Line> iterator = shortLines.iterator(); iterator.hasNext(); ) {
                 Line textRow = iterator.next();
                 for (Rectangle table : tableAreas) {
                     if (table.contains(textRow)) {
@@ -372,7 +384,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             textEdges.add(sideTextEdges);
 
             // find the relevant text edges (the ones we think define where a table is)
-            RelevantEdges relevantEdgeInfo = this.getRelevantEdges(textEdges, lines);
+            RelevantEdges relevantEdgeInfo = this.getRelevantEdges(textEdges, shortLines, lines.size());
 
             // we found something relevant so let's look for rows that fit our criteria
             if (relevantEdgeInfo.edgeType != -1) {
@@ -425,7 +437,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
         for (float tagetOverlap = 0.7f; tagetOverlap >= 0.1f; tagetOverlap -= 0.1f) {
             for (int edgeCount = 8; edgeCount >= 3; edgeCount--) {
-                Rectangle table = this.getTableFromText(allLines, sideTextEdges, edgeCount, horizontalRulings);
+                Rectangle table = this.getTableFromText(allShortLines, sideTextEdges, edgeCount, horizontalRulings);
 
                 if (table != null && table.verticalOverlapPercent(textBoundingBox) > tagetOverlap) {
                     return expand(page, table);
@@ -575,6 +587,8 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                                              edge.getHeight()));
         }
 
+        lines = new ArrayList<>(lines);
+        Collections.reverse(lines);
         // go through the lines and find the ones that have the correct count of the relevant edges
         for (Line textRow : lines) {
             int numRelevantEdges = 0;
@@ -597,9 +611,15 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 // check to make sure this text row is within a line or so of the other lines already added
                 // if it's not, we should stop the table here
                 float tableLineThreshold = (totalRowSpacing / tableSpaceCount) * 2.5f;
-                float lineDistance = textRow.getTop() - prevRow.getTop();
+                float lineDistance = prevRow.getTop() - textRow.getTop();
 
-                if (lineDistance > tableLineThreshold || numRelevantEdgesToFullRow == 0) {
+                if(numRelevantEdgesToFullRow == 0) {
+                    tableLineThreshold = 0 ;
+                } else if(numRelevantEdgesToFullRow < 3) {
+                    tableLineThreshold *= 0.8;
+                }
+
+                if (lineDistance > tableLineThreshold) {
                     lastTableRow = prevRow;
                     break;
                 }
@@ -619,7 +639,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 // keep track of table row spacing
                 if (prevRow != null && firstTableRow != null) {
                     tableSpaceCount++;
-                    totalRowSpacing += (textRow.getTop() - prevRow.getTop());
+                    totalRowSpacing += (prevRow.getTop() - textRow.getTop());
                 }
 
                 // row is part of a table
@@ -628,7 +648,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                     table.setRect(textRow);
                 } else {
                     table.setLeft(Math.min(table.getLeft(), textRow.getLeft()));
-                    table.setBottom(Math.max(table.getBottom(), textRow.getBottom()));
+                    table.setTop(Math.min(table.getTop(), textRow.getTop()));
                     table.setRight(Math.max(table.getRight(), textRow.getRight()));
                 }
             } else {
@@ -711,12 +731,12 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         return table;
     }
 
-    private RelevantEdges getRelevantEdges(TextEdges textEdges, List<Line> lines) {
+    private RelevantEdges getRelevantEdges(TextEdges textEdges, List<Line> lines, int linesCount) {
         List<TextEdge> midTextEdges = textEdges.get(TextEdge.MID);
         List<TextEdge> sideTextEdges = textEdges.get(TextEdge.SIDE_EDGE);
 
         // first we'll find the number of lines each type of edge crosses
-        List<TextEdge>[][] edgeCountsPerLine = new List[lines.size()][TextEdge.NUM_TYPES];
+        List<TextEdge>[][] edgeCountsPerLine = new List[linesCount][TextEdge.NUM_TYPES];
 
 
         for (TextEdge edge : sideTextEdges) {
@@ -933,7 +953,12 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         List<Range>[] rangesActiveArr = new List[]{rangesActiveLeft, rangesActiveMid, rangesActiveRight};
 
         for (Line textRow : lines) {
+
             for (TextChunk text : textRow.getTextElements()) {
+                // big continuous text chunk probably not a part of table.
+                // don't form rulings using them.
+                boolean isLongTextLine = text.width >= 0.4 * textBoundingBox.width;
+
                 float left = text.getLeft();
                 float right = text.getRight();
                 float mid = left + ((right - left) / 2);
@@ -949,38 +974,40 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                     boolean added = false;
                     Float closestNumber = null;
                     Range closestRange = null;
-                    for (Range range : rangesActive) {
-                        added = range.add(number, text);
+                    if (!isLongTextLine) {
+                        for (Range range : rangesActive) {
+                            added = range.add(number, text);
 
-                        Float lastNumber = range.numbers.get(range.numbers.size() - 1);
-                        if (closestNumber == null || (number > lastNumber &&
-                          Math.abs(number - lastNumber) < Math.abs(number - closestNumber))) {
-                            closestNumber = lastNumber;
-                            closestRange = range;
-                        }
+                            Float lastNumber = range.numbers.get(range.numbers.size() - 1);
+                            if (closestNumber == null || (number > lastNumber &&
+                                Math.abs(number - lastNumber) < Math.abs(number - closestNumber))) {
+                                closestNumber = lastNumber;
+                                closestRange = range;
+                            }
 
-                        if (added) {
-                            break;
-                        }
-                    }
-                    if (!added) {
-                        Range newRange = new Range(number, text, rangeType);
-
-                        // backtrack and add close edges from previous lines.
-                        if (closestRange != null) {
-                            for (int j = closestRange.edgeChunks.size() - 1; j >= 0; j--) {
-                                closestNumber = closestRange.numbers.get(j);
-
-                                if (Math.abs(number - closestNumber) > closestRange.getHalfRangeSizeConst()) {
-                                    break;
-                                }
-
-                                if (!newRange.addToBeginning(closestNumber, closestRange.edgeChunks.get(j))) {
-                                    break;
-                                }
+                            if (added) {
+                                break;
                             }
                         }
-                        rangesActive.add(newRange);
+                        if (!added) {
+                            Range newRange = new Range(number, text, rangeType);
+
+                            // backtrack and add close edges from previous lines.
+                            if (closestRange != null) {
+                                for (int j = closestRange.edgeChunks.size() - 1; j >= 0; j--) {
+                                    closestNumber = closestRange.numbers.get(j);
+
+                                    if (Math.abs(number - closestNumber) > closestRange.getHalfRangeSizeConst()) {
+                                        break;
+                                    }
+
+                                    if (!newRange.addToBeginning(closestNumber, closestRange.edgeChunks.get(j))) {
+                                        break;
+                                    }
+                                }
+                            }
+                            rangesActive.add(newRange);
+                        }
                     }
 
                     rangesActive.removeIf(range -> {
