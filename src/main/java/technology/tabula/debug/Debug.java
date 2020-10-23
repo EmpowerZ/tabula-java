@@ -26,6 +26,7 @@ import technology.tabula.ProjectionProfile;
 import technology.tabula.Rectangle;
 import technology.tabula.Ruling;
 import technology.tabula.Table;
+import technology.tabula.TableColumnsFinder;
 import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 import technology.tabula.Utils;
@@ -104,7 +105,7 @@ public class Debug {
             Page newPage = page.getArea(guessRect);
             List<TextChunk> textChunks = TextElement.mergeWords(newPage.getText());
             List<Line> lines = TextChunk.groupByLines(textChunks);
-            List<Float> columns = BasicExtractionAlgorithm.columnPositions(lines);
+            List<Float> columns = new TableColumnsFinder(lines).generateColumns();
             int i = 0;
             for (float p : columns) {
                 Ruling r = new Ruling(new Point2D.Float(p, newPage.getTop()),

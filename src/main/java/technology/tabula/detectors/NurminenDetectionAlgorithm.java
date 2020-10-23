@@ -30,10 +30,10 @@ import technology.tabula.Line;
 import technology.tabula.Page;
 import technology.tabula.Rectangle;
 import technology.tabula.Ruling;
+import technology.tabula.TableColumnsFinder;
 import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 import technology.tabula.Utils;
-import technology.tabula.extractors.BasicExtractionAlgorithm;
 import technology.tabula.extractors.SpreadsheetExtractionAlgorithm;
 
 /**
@@ -449,22 +449,12 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
 
     /**
      * Expands the table to top and bottom, until new content intersects
-     * table column lines (see {@link BasicExtractionAlgorithm#columnPositions(List)})
+     * table column lines (see {@link TableColumnsFinder#generateColumns()})
      */
     private Rectangle expand(Page page, Rectangle table) {
         Page tablePage = page.getArea(table);
         List<TextChunk> textChunks = TextElement.mergeWords(tablePage.getText());
         List<Line> relevantLines = TextChunk.groupByLines(textChunks);
-
-        List<Float> columns = BasicExtractionAlgorithm.columnPositions(relevantLines);
-
-        List<Ruling> verticalR = new ArrayList<>();
-        for (Float column : columns) {
-            float top = (page == null) ? table.getTop() : page.getTop();
-            double height = (page == null) ? table.getHeight() : page.getHeight();
-            // We add + 1 to column since if don't do it SpreadSheetExtractor can cut last letter.
-            verticalR.add(new Ruling(top, column + 1, 0.1f, (float) height));
-        }
 
         Page aboveTable = page.getArea(page.getTop(),
                                        table.getLeft(),
@@ -475,14 +465,18 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                                        page.getBottom(),
                                        table.getRight());
 
-        Rectangle withBelow = expandIntoArea(table, verticalR, belowTable, false);
-        Rectangle rectangle = expandIntoArea(withBelow, verticalR, aboveTable, true);
+        Rectangle withBelow = expandIntoArea(table, belowTable, false, relevantLines);
+        Rectangle rectangle = expandIntoArea(withBelow, aboveTable, true, relevantLines);
 
         return rectangle;
     }
 
-    private Rectangle expandIntoArea(Rectangle initialTablePage, List<Ruling> verticalR,
-                                     Page pageAreaToScan, boolean topPartOfTable) {
+    private Rectangle expandIntoArea(Rectangle initialTablePage,
+                                     Page pageAreaToScan, boolean topPartOfTable,
+                                     List<Line> relevantLines) {
+        TableColumnsFinder columnsFinder = new TableColumnsFinder(relevantLines);
+        List<Float> columns = columnsFinder.generateColumns();
+
         List<TextChunk> expandedTextChunks = TextElement.mergeWords(pageAreaToScan.getText());
         List<Line> expandedLines = TextChunk.groupByLines(expandedTextChunks);
 
@@ -491,25 +485,26 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
         }
 
         Rectangle area = new Rectangle(initialTablePage.getTop(), initialTablePage.getLeft(), initialTablePage.width, initialTablePage.height);
-        outerloop:
+
+        outerLoop:
         for (Line line : expandedLines) {
-            for (TextChunk textChunk : line.getTextElements()) {
-                if (textChunk.isSameChar(Line.WHITE_SPACE_CHARS)) {
-                    continue;
-                }
-
-                for (Ruling ruling : verticalR) {
-                    TextChunk tc = textChunk;
-                    if (textChunk.width > 5) { // give 5 pixel of room for error
-                        tc = new TextChunk(textChunk.getTop(), textChunk.getLeft(),
-                                           textChunk.width - 5, textChunk.height);
-                    }
-
-                    if (tc.intersectsLine(ruling)) {
-                        break outerloop;
+            // if any of chunks crosses existing column break
+            for (float column : columns) {
+                for (TextChunk textChunk : line.getTextElements()) {
+                    if (textChunk.getLeft() <= column &&
+                    textChunk.getRight() - 5 >= column) { // give 5 margin for error
+                        break outerLoop;
                     }
                 }
             }
+
+            // it's also a problem if new chunk creates a new area.
+            int regionsCount = columnsFinder.getRegions().size();
+            columnsFinder.addLine(line, true);
+            if (columnsFinder.getRegions().size() != regionsCount) {
+                break;
+            }
+
             area.merge(line);
         }
 

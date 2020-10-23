@@ -3,17 +3,15 @@ package technology.tabula.extractors;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Arrays;
-import java.util.Set;
 
 import technology.tabula.Line;
 import technology.tabula.Page;
-import technology.tabula.Rectangle;
 import technology.tabula.Ruling;
 import technology.tabula.Table;
+import technology.tabula.TableColumnsFinder;
 import technology.tabula.TextChunk;
 import technology.tabula.TextElement;
 
@@ -87,7 +85,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
             }
         }
         else {
-            columns = columnPositions(lines);
+            columns = new TableColumnsFinder(lines).generateColumns();
         }
         
         Table table = new Table(this);
@@ -183,82 +181,6 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
     @Override
     public String toString() {
         return "stream";
-    }
-    
-    
-    /**
-     * Merges rectangles from text lines which overlap horizontally into big rectangles.
-     * Than makes right side of every big rectangle. These are our columns.
-     *
-     * @param lines must be an array of lines sorted by their +top+ attribute
-     * @return a list of column boundaries (x axis)
-     */
-    public static List<java.lang.Float> columnPositions(List<Line> lines) {
-        // ignore first rows (might be a title header something at the top or wrongly detected thing at top of table),
-        // not merge with them. See eu-001.pdf, Crawford_technologies.pdf for example.
-        int startIndex = (lines.size() > 4) ? 1 : 0;
-        startIndex = (lines.size() > 5) ? 3 : startIndex;
-
-        List<Rectangle> regions = new ArrayList<>();
-        for (TextChunk tc: lines.get(startIndex).getTextElements()) {
-            if (tc.isSameChar(Line.WHITE_SPACE_CHARS)) { 
-                continue; 
-            }
-            Rectangle r = new Rectangle();
-            r.setRect(tc);
-            regions.add(r);
-        }
-        
-        for (Line l: lines.subList(startIndex + 1, lines.size())) {
-            List<TextChunk> lineTextElements = new ArrayList<>();
-            for (TextChunk tc: l.getTextElements()) {
-                if (!tc.isSameChar(Line.WHITE_SPACE_CHARS)) { 
-                    lineTextElements.add(tc);
-                }
-            }
-            
-            for (Rectangle cr: regions) {
-
-                List<TextChunk> overlaps = new ArrayList<>();
-                for (TextChunk te: lineTextElements) {
-                    if (cr.horizontallyOverlaps(te)) {
-                        overlaps.add(te);
-                    }
-                }
-                
-                for (TextChunk te: overlaps) {
-                    cr.merge(te);
-                }
-                
-                lineTextElements.removeAll(overlaps);
-            }
-            
-            for (TextChunk te: lineTextElements) {
-                Rectangle r = new Rectangle();
-                r.setRect(te);
-                regions.add(r);
-            }
-        }
-
-        for (Rectangle ri : regions) {
-            for (Rectangle rj : regions) {
-                if (ri.horizontallyOverlaps(rj)) {
-                    ri.merge(rj);
-                    rj.merge(ri);
-                }
-            }
-        }
-        Set<Rectangle> regionsSet = new HashSet<>(regions);
-
-        List<java.lang.Float> rv = new ArrayList<>();
-        for (Rectangle r: regionsSet) {
-            rv.add(r.getRight());
-        }
-        
-        Collections.sort(rv);
-        
-        return rv;
-        
     }
 
     public void setMixedTableExtractionEnabled(boolean mixedTableExtractionEnabled) {
