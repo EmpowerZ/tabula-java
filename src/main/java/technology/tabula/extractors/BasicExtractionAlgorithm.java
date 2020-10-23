@@ -3,9 +3,11 @@ package technology.tabula.extractors;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Arrays;
+import java.util.Set;
 
 import technology.tabula.Line;
 import technology.tabula.Page;
@@ -237,9 +239,19 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
                 regions.add(r);
             }
         }
-        
+
+        for (Rectangle ri : regions) {
+            for (Rectangle rj : regions) {
+                if (ri.horizontallyOverlaps(rj)) {
+                    ri.merge(rj);
+                    rj.merge(ri);
+                }
+            }
+        }
+        Set<Rectangle> regionsSet = new HashSet<>(regions);
+
         List<java.lang.Float> rv = new ArrayList<>();
-        for (Rectangle r: regions) {
+        for (Rectangle r: regionsSet) {
             rv.add(r.getRight());
         }
         

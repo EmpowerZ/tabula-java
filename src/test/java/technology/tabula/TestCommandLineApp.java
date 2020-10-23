@@ -92,7 +92,7 @@ public class TestCommandLineApp {
                 "src/test/resources/technology/tabula/spanning_cells.pdf",
                 "-p", "1", "-a",
                 "150.56,58.9,654.7,536.12", "-f",
-                "JSON"
+                "JSON", "-l"
         }));
     }
 
@@ -105,7 +105,7 @@ public class TestCommandLineApp {
                 "src/test/resources/technology/tabula/spanning_cells.pdf",
                 "-p", "1", "-a",
                 "150.56,58.9,654.7,536.12", "-f",
-                "CSV"
+                "CSV", "-l"
         }));
     }
 
@@ -133,9 +133,9 @@ public class TestCommandLineApp {
                 "src/test/resources/technology/tabula/encrypted.pdf",
                 "-s", "userpassword",
                 "-p", "1",
-                "-f", "CSV"
+                "-f", "CSV", "-g"
         });
-        assertEquals("FLA Audit Profile,,,,,,,,,", s.split("\\r?\\n")[0]);
+        assertEquals("FLA Audit Profile,", s.split("\\r?\\n")[0]);
     }
 
     @Test(expected=org.apache.commons.cli.ParseException.class)
