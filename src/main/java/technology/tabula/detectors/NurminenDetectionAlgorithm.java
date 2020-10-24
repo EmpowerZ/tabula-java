@@ -74,11 +74,12 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             }
 
             // o1 is "equal" to o2 if o2 contains all of o1
-            if (o2.contains(o1)) {
+            if (o2.almostContains(o1)) {
                 return 0;
             }
 
-            if (o1.contains(o2)) {
+            if (o1.almostContains(o2)) {
+                o2.setRect(o1); // the bigger rect should remain
                 return 0;
             }
 
@@ -613,7 +614,7 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
                 } else if(numRelevantEdgesToFullRow <= 3) {
                     tableLineThreshold *= 1.1f + numRelevantEdges / 10f;
                 } else {
-                    tableLineThreshold *= numRelevantEdgesToFullRow / 2.6f;
+                    tableLineThreshold *= numRelevantEdgesToFullRow / 2.4f;
                 }
 
                 if (lineDistance > tableLineThreshold) {

@@ -152,6 +152,15 @@ public class Rectangle extends Rectangle2D.Float {
 				new Point2D.Float(this.getLeft(), this.getBottom()) };
 	}
 
+	public boolean almostContains(Rectangle other) {
+		Rectangle otherSmaller = new Rectangle();
+		float margin = (other.width > 10 && other.height > 10) ? 2f : 0f;
+		otherSmaller.setRect(other.x + margin, other.y + margin,
+							 other.width - 2 * margin, other.height - 2 * margin);
+
+		return contains(otherSmaller);
+	}
+
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
