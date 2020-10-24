@@ -605,13 +605,15 @@ public class NurminenDetectionAlgorithm implements DetectionAlgorithm {
             if (firstTableRow != null && tableSpaceCount > 0) {
                 // check to make sure this text row is within a line or so of the other lines already added
                 // if it's not, we should stop the table here
-                float tableLineThreshold = (totalRowSpacing / tableSpaceCount) * 2.5f;
+                float tableLineThreshold = (totalRowSpacing / tableSpaceCount);
                 float lineDistance = prevRow.getTop() - textRow.getTop();
 
                 if(numRelevantEdgesToFullRow == 0) {
                     tableLineThreshold = 0 ;
-                } else if(numRelevantEdgesToFullRow < 3) {
-                    tableLineThreshold *= 0.8;
+                } else if(numRelevantEdgesToFullRow <= 3) {
+                    tableLineThreshold *= 1.1f + numRelevantEdges / 10f;
+                } else {
+                    tableLineThreshold *= numRelevantEdgesToFullRow / 2.6f;
                 }
 
                 if (lineDistance > tableLineThreshold) {
