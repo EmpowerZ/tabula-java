@@ -27,7 +27,9 @@ public class TableColumnsFinder {
         // ignore first rows (might be a title header something at the top or wrongly detected thing at top of table),
         // not merge with them. See eu-001.pdf, Crawford_technologies.pdf for example.
         int startIndex = (lines.size() > 4) ? 1 : 0;
-        startIndex = (lines.size() > 5) ? 3 : startIndex;
+        startIndex = (lines.size() > 5) ? 2 : startIndex;
+        int skipEndElements = (lines.size() > 5) ? 1 : 0;
+        skipEndElements = (lines.size() > 7) ? 2 : skipEndElements;
 
         for (TextChunk tc: lines.get(startIndex).getTextElements()) {
             if (tc.isSameChar(Line.WHITE_SPACE_CHARS)) {
@@ -38,11 +40,15 @@ public class TableColumnsFinder {
             regions.add(r);
         }
 
-        for (Line l: lines.subList(startIndex + 1, lines.size())) {
+        for (Line l: lines.subList(startIndex + 1, lines.size() - skipEndElements)) {
             addLine(l, true);
         }
 
         for (Line l: lines.subList(0, startIndex + 1)) {
+            addLine(l, false);
+        }
+
+        for (Line l: lines.subList(lines.size() - skipEndElements - 1, lines.size())) {
             addLine(l, false);
         }
 
